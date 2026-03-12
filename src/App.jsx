@@ -1,42 +1,69 @@
-import { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend
 } from 'recharts';
 import './App.css';
+import { auth } from './config/firebase';
+import { onAuthStateChanged, signOut } from 'firebase/auth';
+import { login, register, logout, getAllUsers, toggleUserStatus, updateUsername, changeOwnPassword } from './services/authService';
+import { addTransaction, getUserTransactions, deleteTransaction } from './services/transactionService';
+import { getUserBudgets, saveUserBudgets } from './services/budgetService';
+
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null, errorInfo: null };
+  }
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+  componentDidCatch(error, errorInfo) {
+    console.error("ErrorBoundary caught:", error, errorInfo);
+    this.setState({ errorInfo });
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ padding: '2rem', backgroundColor: '#fef2f2', color: '#991b1b', height: '100vh', width: '100vw', boxSizing: 'border-box' }}>
+          <h2>Application Crash 💥</h2>
+          <p>O React travou devido ao seguinte erro de execução:</p>
+          <pre style={{ whiteSpace: 'pre-wrap', backgroundColor: '#fee2e2', padding: '1rem', borderRadius: '8px' }}>
+             {this.state.error && this.state.error.toString()}
+          </pre>
+          <details style={{ whiteSpace: 'pre-wrap', marginTop: '1rem' }}>
+             <summary>Component Stack trace</summary>
+             <div style={{ backgroundColor: '#fff', padding: '1rem', borderRadius: '4px', fontSize: 12 }}>
+                 {this.state.errorInfo && this.state.errorInfo.componentStack}
+             </div>
+          </details>
+          <button onClick={() => window.location.reload()} style={{ padding: '10px 20px', marginTop: 20, cursor: 'pointer' }}>Recarregar App</button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 function App() {
   // --------- STATE: THEME ---------
   const [theme, setTheme] = useState(() => localStorage.getItem('finance_theme') || 'dark');
 
   // --------- STATE: AUTH ---------
-  const [users, setUsers] = useState(() => {
-    const saved = localStorage.getItem('finance_users');
-    let parsedUsers = saved ? JSON.parse(saved) : [];
-    
-    // Always ensure the default admin exists, in case cache wiped it or it was saved incorrectly in older versions.
-    if (!parsedUsers.some(u => u.username === 'admin')) {
-       parsedUsers.push({ id: 'admin-1', username: 'admin', password: 'admin', role: 'admin', active: true });
-    }
-    return parsedUsers;
-  });
-  
-  const [currentUser, setCurrentUser] = useState(() => {
-    const saved = localStorage.getItem('finance_current_user');
-    return saved ? JSON.parse(saved) : null;
-  });
+  const [users, setUsers] = useState([]); // Will be populated for admins
+  const [currentUser, setCurrentUser] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
 
   const [authMode, setAuthMode] = useState('login');
   const [authFullName, setAuthFullName] = useState('');
+  const [authEmail, setAuthEmail] = useState('');
   const [authUsername, setAuthUsername] = useState('');
   const [authPassword, setAuthPassword] = useState('');
   const [authError, setAuthError] = useState('');
 
   // --------- STATE: TRANSACTIONS & FORM ---------
-  const [transactions, setTransactions] = useState(() => {
-    const saved = localStorage.getItem('finance_transactions');
-    return saved ? JSON.parse(saved) : [];
-  });
+  const [transactions, setTransactions] = useState([]);
+  const [dataLoading, setDataLoading] = useState(false);
   
   const [description, setDescription] = useState('');
   const [amount, setAmount] = useState('');
@@ -45,11 +72,7 @@ function App() {
   const [isRecurring, setIsRecurring] = useState(false);
 
   // --------- STATE: BUDGETS & GOALS ---------
-  // Maps category name to a numeric limit e.g. { 'Moradia': 1500, 'Lazer': 300 }
-  const [budgets, setBudgets] = useState(() => {
-    const saved = localStorage.getItem('finance_budgets');
-    return saved ? JSON.parse(saved) : {};
-  });
+  const [budgets, setBudgets] = useState({});
 
   // --------- STATE: UI NAVIGATION & FILTERS ---------
   const [currentView, setCurrentView] = useState('dashboard');
@@ -62,19 +85,70 @@ function App() {
   const COLORS = ['#1D9E75', '#5DCAA5', '#f87171', '#f59e0b', '#8b5cf6', '#3b82f6'];
 
   // --------- EFFECTS ---------
-  useEffect(() => { localStorage.setItem('finance_users', JSON.stringify(users)); }, [users]);
-  useEffect(() => { localStorage.setItem('finance_budgets', JSON.stringify(budgets)); }, [budgets]);
-  useEffect(() => { 
-    if (currentUser) localStorage.setItem('finance_current_user', JSON.stringify(currentUser));
-    else localStorage.removeItem('finance_current_user');
-  }, [currentUser]);
-  useEffect(() => { localStorage.setItem('finance_transactions', JSON.stringify(transactions)); }, [transactions]);
-
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
     localStorage.setItem('finance_theme', theme);
   }, [theme]);
   const toggleTheme = () => setTheme(prev => prev === 'dark' ? 'light' : 'dark');
+
+  // Firebase Auth Observer
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        // Here we could re-fetch full custom data if needed, or rely on login payload.
+        // For simplicity, we just set true unless they log in via the full service first.
+        // But doing a quick doc fetch is safer to get role
+        import('firebase/firestore').then(({ getDoc, doc }) => {
+           import('./config/firebase').then(({ db }) => {
+              getDoc(doc(db, 'users', user.uid)).then(userDoc => {
+                if (userDoc.exists()) {
+                   setCurrentUser({ ...user, ...userDoc.data() });
+                } else {
+                   setCurrentUser(user);
+                }
+                setAuthLoading(false);
+              }).catch(err => {
+                 console.error("Auth DB Error:", err);
+                 setCurrentUser(user);
+                 setAuthLoading(false);
+              });
+           })
+        });
+      } else {
+        setCurrentUser(null);
+        setAuthLoading(false);
+        setTransactions([]);
+        setBudgets({});
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  // Fetch user data when currentUser changes
+  useEffect(() => {
+    const fetchData = async () => {
+       if (!currentUser) return;
+       setDataLoading(true);
+       try {
+         const txs = await getUserTransactions(currentUser.uid);
+         setTransactions(txs);
+         
+         const userBudgets = await getUserBudgets(currentUser.uid);
+         setBudgets(userBudgets);
+         
+         if (currentUser.role === 'admin') {
+            const allU = await getAllUsers();
+            setUsers(allU);
+         }
+       } catch (error) {
+         console.error("Error fetching data:", error);
+       } finally {
+         setDataLoading(false);
+       }
+    };
+    fetchData();
+  }, [currentUser]);
 
   // RECURRING TRANSACTIONS EFFECT: Runs once on login to process recurrences
   useEffect(() => {
@@ -87,7 +161,7 @@ function App() {
        const currentM = today.getMonth() + 1;
        const currentY = today.getFullYear();
        
-       const userRecurrents = transactions.filter(t => t.userId === currentUser.id && t.isRecurring);
+       const userRecurrents = transactions.filter(t => t.userId === currentUser.uid && t.isRecurring);
        let hasNewGenerations = false;
        let newBatch = [...transactions];
 
@@ -140,57 +214,60 @@ function App() {
 
 
   // --------- AUTH LOGIC ---------
-  const handleAuth = (e) => {
+  const handleAuth = async (e) => {
     e.preventDefault();
     setAuthError('');
-    if (authMode === 'login') {
-      const user = users.find(u => u.username === authUsername && u.password === authPassword);
-      if (user) {
-        if (!user.active) { setAuthError('Usuário bloqueado.'); return; }
-        setCurrentUser(user);
-        setAuthUsername(''); setAuthPassword(''); setAuthFullName('');
+    try {
+      if (authMode === 'login') {
+         // Firebase login ALWAYS requires the email.
+         await login(authEmail, authPassword);
       } else {
-        setAuthError('Credenciais inválidas.');
+         await register(authEmail, authPassword, authFullName);
       }
-    } else {
-      if (users.find(u => u.username === authUsername)) { setAuthError('Usuário já existe.'); return; }
-      const newUser = { id: crypto.randomUUID(), fullName: authFullName, username: authUsername, password: authPassword, role: 'user', active: true };
-      setUsers([...users, newUser]);
-      setCurrentUser(newUser);
-      setAuthUsername(''); setAuthPassword(''); setAuthFullName('');
+      setAuthUsername(''); setAuthEmail(''); setAuthPassword(''); setAuthFullName('');
+    } catch (error) {
+       console.error(error.message);
+       if (error.code === 'auth/invalid-credential') setAuthError('Credenciais inválidas.');
+       else if (error.code === 'auth/email-already-in-use') setAuthError('Usuário já existe.');
+       else if (error.message === 'access-denied') setAuthError('Usuário bloqueado pelo administrador.');
+       else setAuthError('Ocorreu um erro. Tente novamente.');
     }
   };
 
-  const handleLogout = () => setCurrentUser(null);
-
-  // --------- ADMIN PANEL LOGIC ---------
-  const handleToggleUserStatus = (id) => {
-    if (id === currentUser.id) return alert('Você não pode bloquear a si mesmo.');
-    setUsers(users.map(u => u.id === id ? { ...u, active: !u.active } : u));
+  const handleLogout = async () => {
+     await logout();
   };
 
-  const handleEditUsername = (id, currentUsername) => {
+  // --------- ADMIN PANEL LOGIC ---------
+  const handleToggleUserStatus = async (id, currentStatus) => {
+    if (id === currentUser.uid) return alert('Você não pode bloquear a si mesmo.');
+    try {
+      await toggleUserStatus(id, currentStatus);
+      setUsers(users.map(u => u.id === id ? { ...u, active: !u.active } : u));
+    } catch(err) { alert('Erro ao alterar status'); }
+  };
+
+  const handleEditUsername = async (id, currentUsername) => {
     const newName = prompt(`Novo nome de usuário (atual: ${currentUsername}):`, currentUsername);
     if (!newName || newName === currentUsername) return;
-    if (users.some(u => u.username === newName && u.id !== id)) return alert('Este nome já está em uso.');
-    setUsers(users.map(u => u.id === id ? { ...u, username: newName } : u));
-    if (currentUser.id === id) setCurrentUser({...currentUser, username: newName});
+    try {
+      await updateUsername(id, newName);
+      setUsers(users.map(u => u.id === id ? { ...u, username: newName } : u));
+      if (currentUser.uid === id) setCurrentUser({...currentUser, username: newName});
+    } catch (err) { alert('Erro ao atualizar nome'); }
   };
 
   const handleResetPassword = (id, username) => {
-    const newPass = prompt(`Nova senha para ${username} (a senha atual não é exibida):`);
-    if (!newPass) return;
-    setUsers(users.map(u => u.id === id ? { ...u, password: newPass } : u));
-    alert(`Senha atualizada com sucesso.`);
-    if (currentUser.id === id) setCurrentUser({...currentUser, password: newPass});
+    alert('Na versão Firebase, senhas de outros usuários devem ser redefinidas via email de recuperação ou fluxo do Admin SDK (Backend).');
   };
 
-  const handleChangeOwnPassword = () => {
+  const handleChangeOwnPassword = async () => {
     const newPass = prompt('Sua nova senha de administrador:');
     if (!newPass) return;
-    setUsers(users.map(u => u.id === currentUser.id ? { ...u, password: newPass } : u));
-    setCurrentUser({...currentUser, password: newPass});
-    alert('Sua senha foi alterada com sucesso.');
+    try {
+      await changeOwnPassword(auth.currentUser, newPass);
+      alert('Sua senha foi alterada com sucesso.');
+    } catch (err) { alert('Erro ao mudar senha. Tente relogar.'); }
   };
 
   // --------- TRANSACTION FORM MASK & LOGIC ---------
@@ -202,53 +279,47 @@ function App() {
     setAmount(formatted);
   };
 
-  const handleAddTransaction = (e) => {
+  const handleAddTransaction = async (e) => {
     e.preventDefault();
     if (!description || !amount || !category) return;
     
     const numericAmount = parseFloat(amount.replace(/\./g, '').replace(',', '.'));
     if(isNaN(numericAmount) || numericAmount <= 0) return;
 
-    /*
-      Force logic for selected filter month instead of pure "today".
-      So if user is viewing "Feb/2026", new transaction goes into Feb.
-    */
     const now = new Date();
-    // Use selected month/year but keep today's day/time if viewing current month, otherwise 1st of month.
     const isCurrentPeriod = (selectedMonth === now.getMonth() + 1) && (selectedYear === now.getFullYear());
     
-    let dateObj;
-    if (isCurrentPeriod) {
-       dateObj = now;
-    } else {
-       dateObj = new Date(selectedYear, selectedMonth - 1, 1, 12, 0, 0); 
-    }
+    let dateObj = isCurrentPeriod ? now : new Date(selectedYear, selectedMonth - 1, 1, 12, 0, 0); 
     
     const newTransaction = {
-      id: crypto.randomUUID(),
-      userId: currentUser.id,
       description,
       amount: numericAmount,
       type,
       category,
-      isRecurring: isRecurring && type === 'expense', // Only support repeating expenses for now
+      isRecurring: isRecurring && type === 'expense', 
       date: dateObj.toISOString(), 
       displayDate: dateObj.toLocaleDateString('pt-BR')
     };
     
-    setTransactions([newTransaction, ...transactions]);
-    setDescription(''); setAmount(''); setCategory(''); setIsRecurring(false);
+    try {
+      const savedDoc = await addTransaction(newTransaction);
+      setTransactions([savedDoc, ...transactions]);
+      setDescription(''); setAmount(''); setCategory(''); setIsRecurring(false);
+    } catch(err) { alert('Erro ao salvar transação.'); }
   };
 
-  const handleDelete = (id) => {
-     setTransactions(transactions.filter(t => t.id !== id));
+  const handleDelete = async (id) => {
+     try {
+       await deleteTransaction(id);
+       setTransactions(transactions.filter(t => t.id !== id));
+     } catch (err) { alert('Erro ao deletar') }
   };
 
 
   // --------- DATA CALCULATIONS (Memoized) ---------
   
   const userTransactions = useMemo(() => {
-    return transactions.filter(t => t.userId === currentUser?.id);
+    return transactions.filter(t => t.userId === currentUser?.uid);
   }, [transactions, currentUser]);
 
   const filteredTransactions = useMemo(() => {
@@ -301,6 +372,25 @@ function App() {
 
   // --------- HELPERS ---------
   const formatMoney = (val) => val.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  const exportToCSV = () => {
+    if (filteredTransactions.length === 0) return;
+    const headers = ['Data', 'Descrição', 'Categoria', 'Tipo', 'Valor'];
+    const rows = filteredTransactions.map(t => [
+      t.displayDate,
+      t.description,
+      t.category,
+      t.type === 'income' ? 'Receita' : 'Despesa',
+      t.amount.toString().replace('.', ',')
+    ]);
+    const csvContent = "\uFEFF" + [headers.join(';'), ...rows.map(e => e.join(';'))].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `karonte_export_${selectedMonth}_${selectedYear}.csv`;
+    link.click();
+  };
+
   const getCatFill = (index, catName) => {
     if (catName === 'Moradia') return 'var(--cat-moradia-fill)';
     if (catName === 'Alimentação') return 'var(--cat-alimentacao-fill)';
@@ -318,8 +408,7 @@ function App() {
   // Budget Manager logic
   const getCategoryBudgetInfo = (catName, currentSpent) => {
     // Check user specifically or default
-    const userBudgets = budgets[currentUser?.id] || {};
-    const limit = userBudgets[catName] || 0; // 0 means no limit defined
+    const limit = budgets[catName] || 0; // 0 means no limit defined
     
     if (limit === 0) return { limit: 0, pct: 0, isOver80: false, isOver100: false };
     
@@ -332,18 +421,20 @@ function App() {
     };
   };
 
-  const handleBudgetChange = (catName) => {
+  const handleBudgetChange = async (catName) => {
     const val = prompt(`Definir limite mensal para ${catName} (Apenas números, 0 para remover):`);
     if (val === null) return;
     const num = parseFloat(val);
     if (isNaN(num)) return;
     
-    setBudgets(prev => {
-      const userObj = { ...(prev[currentUser.id] || {}) };
-      if (num === 0) delete userObj[catName];
-      else userObj[catName] = num;
-      return { ...prev, [currentUser.id]: userObj };
-    });
+    const newBudgets = { ...budgets };
+    if (num === 0) delete newBudgets[catName];
+    else newBudgets[catName] = num;
+
+    try {
+       await saveUserBudgets(newBudgets);
+       setBudgets(newBudgets);
+    } catch(err) { alert('Erro ao salvar orçamento.')}
   };
 
   // --------- CHATBOT ---------
@@ -446,7 +537,7 @@ function App() {
     }, 600); // Artificial thinking delay
   };
 
-  const handleChatConfirm = () => {
+  const handleChatConfirm = async () => {
      if (!pendingAction) return;
      
      const now = new Date();
@@ -454,8 +545,6 @@ function App() {
      const dateObj = isCurrentPeriod ? now : new Date(selectedYear, selectedMonth - 1, 1, 12, 0, 0); 
 
      const newTransaction = {
-      id: crypto.randomUUID(),
-      userId: currentUser.id,
       description: pendingAction.description,
       amount: pendingAction.amount,
       type: pendingAction.type,
@@ -465,15 +554,18 @@ function App() {
       displayDate: dateObj.toLocaleDateString('pt-BR')
     };
     
-    setTransactions([newTransaction, ...transactions]);
-    setPendingAction(null);
-    setChatInput('');
+    try {
+      const savedDoc = await addTransaction(newTransaction);
+      setTransactions([savedDoc, ...transactions]);
+      setPendingAction(null);
+      setChatInput('');
 
-    setChatMessages(prev => [
-       ...prev, 
-       { id: crypto.randomUUID(), sender: 'user', text: 'Sim' }, // Visual feedback
-       { id: crypto.randomUUID(), sender: 'bot', text: `Feito! Registrei ${pendingAction.type === 'income' ? 'a receita' : 'a despesa'} com sucesso no seu dashboard.` }
-    ]);
+      setChatMessages(prev => [
+         ...prev, 
+         { id: crypto.randomUUID(), sender: 'user', text: 'Sim' }, // Visual feedback
+         { id: crypto.randomUUID(), sender: 'bot', text: `Feito! Registrei ${pendingAction.type === 'income' ? 'a receita' : 'a despesa'} com sucesso no seu dashboard.` }
+      ]);
+    } catch(err) { alert('Erro ao registrar via chat') }
   };
 
   const handleChatCancel = () => {
@@ -494,6 +586,16 @@ function App() {
 
   // ================= VIEWS =================
 
+  if (authLoading) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', flexDirection: 'column', color: 'var(--text-primary)' }}>
+         <div className="spinner" style={{ border: '3px solid var(--border-color)', borderTopColor: 'var(--primary-color)', borderRadius: '50%', width: 40, height: 40, animation: 'spin 1s linear infinite' }}></div>
+         <p style={{ marginTop: 15 }}>Conectando ao Karonte...</p>
+         <style>{`@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
+      </div>
+    );
+  }
+
   if (!currentUser) {
     return (
       <div className="auth-container">
@@ -505,14 +607,20 @@ function App() {
           {authError && <div className="auth-error">{authError}</div>}
           <form className="auth-form" onSubmit={handleAuth}>
             {authMode === 'register' && (
-               <div className="form-group">
-                 <label>Nome Completo</label>
-                 <input type="text" value={authFullName} onChange={e => setAuthFullName(e.target.value)} required />
-               </div>
+               <>
+                 <div className="form-group">
+                   <label>Nome Completo</label>
+                   <input type="text" value={authFullName} onChange={e => setAuthFullName(e.target.value)} required />
+                 </div>
+                 <div className="form-group">
+                   <label>Nome de Usuário (Como quer ser chamado)</label>
+                   <input type="text" value={authUsername} onChange={e => setAuthUsername(e.target.value)} required />
+                 </div>
+               </>
             )}
             <div className="form-group">
-              <label>Nome de Usuário</label>
-              <input type="text" value={authUsername} onChange={e => setAuthUsername(e.target.value)} required />
+              <label>E-mail</label>
+              <input type="email" value={authEmail} onChange={e => setAuthEmail(e.target.value)} required />
             </div>
             <div className="form-group">
               <label>Senha</label>
@@ -575,7 +683,7 @@ function App() {
                       <tr key={u.id}>
                         <td>
                           {u.username}
-                          {u.id === currentUser.id && <span style={{marginLeft: 8, fontSize: 10, color: 'var(--text-tertiary)'}}>(Você)</span>}
+                          {u.id === currentUser.uid && <span style={{marginLeft: 8, fontSize: 10, color: 'var(--text-tertiary)'}}>(Você)</span>}
                         </td>
                         <td>{u.role === 'admin' ? 'Administrador' : 'Usuário'}</td>
                         <td style={{color: u.active ? 'var(--success-color)' : 'var(--danger-color)'}}>
@@ -584,7 +692,7 @@ function App() {
                         <td style={{textAlign: 'right', display: 'flex', gap: '8px', justifyContent: 'flex-end'}}>
                            <button className="text-btn" onClick={() => handleEditUsername(u.id, u.username)} title="Alterar Login">Editar Nome</button>
                            <button className="text-btn" onClick={() => handleResetPassword(u.id, u.username)} title="Alterar Senha">Resetar Senha</button>
-                           {u.id !== currentUser.id && (
+                           {u.id !== currentUser.uid && (
                              <button className="text-btn" onClick={() => handleToggleUserStatus(u.id)} style={{color: u.active ? 'var(--danger-color)' : 'var(--success-color)'}}>
                                 {u.active ? 'Inativar' : 'Ativar'}
                              </button>
@@ -633,9 +741,9 @@ function App() {
       <div className="content-wrapper">
         <header className="top-bar">
           <div className="user-info">
-            <div className="avatar">{currentUser.username.charAt(0).toUpperCase()}</div>
+            <div className="avatar">{(currentUser.username || currentUser.displayName || currentUser.email || '?').charAt(0).toUpperCase()}</div>
             <div className="user-details">
-              <h3>{currentUser.username}</h3>
+              <h3>{currentUser.username || currentUser.displayName || currentUser.email}</h3>
               <span>{new Date(selectedYear, selectedMonth-1).toLocaleString('pt-BR', { month: 'long', year: 'numeric' })}</span>
             </div>
           </div>
@@ -968,4 +1076,10 @@ function App() {
   );
 }
 
-export default App;
+export default function AppWrapper() {
+  return (
+    <ErrorBoundary>
+       <App />
+    </ErrorBoundary>
+  )
+}
