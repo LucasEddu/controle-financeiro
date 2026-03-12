@@ -27,6 +27,7 @@ function App() {
   });
 
   const [authMode, setAuthMode] = useState('login');
+  const [authFullName, setAuthFullName] = useState('');
   const [authUsername, setAuthUsername] = useState('');
   const [authPassword, setAuthPassword] = useState('');
   const [authError, setAuthError] = useState('');
@@ -147,16 +148,16 @@ function App() {
       if (user) {
         if (!user.active) { setAuthError('Usuário bloqueado.'); return; }
         setCurrentUser(user);
-        setAuthUsername(''); setAuthPassword('');
+        setAuthUsername(''); setAuthPassword(''); setAuthFullName('');
       } else {
         setAuthError('Credenciais inválidas.');
       }
     } else {
       if (users.find(u => u.username === authUsername)) { setAuthError('Usuário já existe.'); return; }
-      const newUser = { id: crypto.randomUUID(), username: authUsername, password: authPassword, role: 'user', active: true };
+      const newUser = { id: crypto.randomUUID(), fullName: authFullName, username: authUsername, password: authPassword, role: 'user', active: true };
       setUsers([...users, newUser]);
       setCurrentUser(newUser);
-      setAuthUsername(''); setAuthPassword('');
+      setAuthUsername(''); setAuthPassword(''); setAuthFullName('');
     }
   };
 
@@ -491,13 +492,19 @@ function App() {
       <div className="auth-container">
         <div className="auth-card">
           <div className="auth-header">
-            <h2>{authMode === 'login' ? 'Entrar' : 'Criar Conta'}</h2>
-            <p>Acesse seu controle financeiro.</p>
+            <h2>{authMode === 'login' ? 'Entrar no Karonte' : 'Criar Conta no Karonte'}</h2>
+            <p>Seu sistema de controle financeiro.</p>
           </div>
           {authError && <div className="auth-error">{authError}</div>}
           <form className="auth-form" onSubmit={handleAuth}>
+            {authMode === 'register' && (
+               <div className="form-group">
+                 <label>Nome Completo</label>
+                 <input type="text" value={authFullName} onChange={e => setAuthFullName(e.target.value)} required />
+               </div>
+            )}
             <div className="form-group">
-              <label>Usuário</label>
+              <label>Nome de Usuário</label>
               <input type="text" value={authUsername} onChange={e => setAuthUsername(e.target.value)} required />
             </div>
             <div className="form-group">
@@ -595,7 +602,7 @@ function App() {
       <aside className="sidebar">
         <div className="sidebar-brand">
           <div className="brand-icon">Δ</div>
-          <span>AMBER</span>
+          <span>KARONTE</span>
         </div>
         
         <nav className="sidebar-nav">
