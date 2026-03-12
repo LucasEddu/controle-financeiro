@@ -1,39 +1,82 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
-:root {
-  /* Midnight Green Theme */
+:root, [data-theme="dark"] {
+  /* Midnight Green Theme (Dark) */
   --bg-color: #0a1512;        
   --surface-color: #0f1f1a;   
-  
-  /* Borders */
   --border-color: #1d4031;
   --border-light: rgba(255, 255, 255, 0.06);
   --border-medium: rgba(255, 255, 255, 0.12);
-  
-  /* Text */
   --text-primary: #d1fae5;
   --text-secondary: rgba(74, 222, 128, 0.67);
   --text-tertiary: rgba(74, 222, 128, 0.40);
   --text-highlight: #6ee7b7;
   
-  /* Interactive */
   --primary-color: #1D9E75;
   --primary-bg: #0F6E56;
   --primary-text: #9FE1CB;
   
-  /* Status */
   --success-color: #5DCAA5;
   --success-bg: #071a0e;
   
   --danger-color: #f87171;
   --danger-bg: #1a0c0c;
   --danger-border: rgba(248, 113, 113, 0.25);
+
+  /* Categories */
+  --cat-alimentacao: #5DCAA5;
+  --cat-moradia: #1D9E75;
+  --cat-lazer: #f87171;
+
+  /* Chatbot */
+  --chat-bg: #0a0900;
+  --chat-bot-bubble: #1a1505;
+  --chat-bot-border: #2e2008;
+  --chat-user-bubble: #854F0B;
+  --chat-user-text: #fef3c7;
+}
+
+[data-theme="light"] {
+  /* Light Theme */
+  --bg-color: #f5f8f7;        
+  --surface-color: #ffffff;   
+  --border-color: #e2e8f0;
+  --border-light: rgba(0, 0, 0, 0.04);
+  --border-medium: rgba(0, 0, 0, 0.08);
+  --text-primary: #1e293b;
+  --text-secondary: #475569;
+  --text-tertiary: #94a3b8;
+  --text-highlight: #0f766e;
+  
+  --primary-color: #1D9E75;
+  --primary-bg: #e6f4f1; /* Used for subtle active backgrounds */
+  --primary-text: #0d5c44;
+  
+  --success-color: #10b981;
+  --success-bg: #d1fae5;
+  
+  --danger-color: #E24B4A;
+  --danger-bg: #fef2f2;
+  --danger-border: rgba(226, 75, 74, 0.25);
+
+  /* Categories */
+  --cat-alimentacao: #5DCAA5;
+  --cat-moradia: #1D9E75;
+  --cat-lazer: #E24B4A;
+
+  /* Chatbot */
+  --chat-bg: #fffbf0;
+  --chat-bot-bubble: #ffffff;
+  --chat-bot-border: #e8d5a0;
+  --chat-user-bubble: #BA7517;
+  --chat-user-text: #ffffff;
 }
 
 *, *::before, *::after {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
+  transition: background-color 200ms linear, color 200ms linear, border-color 200ms linear, fill 200ms linear, stroke 200ms linear;
 }
 
 html {

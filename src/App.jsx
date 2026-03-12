@@ -6,6 +6,9 @@ import {
 import './App.css';
 
 function App() {
+  // --------- STATE: THEME ---------
+  const [theme, setTheme] = useState(() => localStorage.getItem('finance_theme') || 'dark');
+
   // --------- STATE: AUTH ---------
   const [users, setUsers] = useState(() => {
     const saved = localStorage.getItem('finance_users');
@@ -65,6 +68,12 @@ function App() {
     else localStorage.removeItem('finance_current_user');
   }, [currentUser]);
   useEffect(() => { localStorage.setItem('finance_transactions', JSON.stringify(transactions)); }, [transactions]);
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('finance_theme', theme);
+  }, [theme]);
+  const toggleTheme = () => setTheme(prev => prev === 'dark' ? 'light' : 'dark');
 
   // RECURRING TRANSACTIONS EFFECT: Runs once on login to process recurrences
   useEffect(() => {
@@ -291,7 +300,12 @@ function App() {
 
   // --------- HELPERS ---------
   const formatMoney = (val) => val.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  const getCatColor = (index) => COLORS[index % COLORS.length];
+  const getCatColor = (index, catName) => {
+    if (catName === 'Moradia') return 'var(--cat-moradia)';
+    if (catName === 'Alimentação') return 'var(--cat-alimentacao)';
+    if (catName === 'Lazer') return 'var(--cat-lazer)';
+    return COLORS[index % COLORS.length];
+  };
 
   // Budget Manager logic
   const getCategoryBudgetInfo = (catName, currentSpent) => {
@@ -519,6 +533,9 @@ function App() {
             </div>
           </div>
           <div className="top-actions">
+            <button onClick={toggleTheme} className="text-btn" style={{marginRight: 15, fontSize: '14px', alignSelf: 'center'}} title="Mudar Tema">
+               {theme === 'dark' ? '☀️' : '🌙'}
+            </button>
             <button onClick={handleChangeOwnPassword} className="text-btn" style={{marginRight: 15, color: 'var(--text-secondary)'}}>Alterar Senha Admin</button>
             <button onClick={handleLogout} className="logout-btn">Sair</button>
           </div>
@@ -621,6 +638,9 @@ function App() {
                <button onClick={exportToCSV} className="export-btn" title="Exportar CSV">Descarga</button>
             )}
             <div className="divider"></div>
+            <button onClick={toggleTheme} className="text-btn" style={{marginRight: 10, fontSize: '14px', alignSelf: 'center'}} title="Mudar Tema">
+               {theme === 'dark' ? '☀️' : '🌙'}
+            </button>
             <button onClick={handleLogout} className="logout-btn">Sair</button>
           </div>
         </header>
@@ -655,7 +675,7 @@ function App() {
                         const isUnbudgeted = budgetInfo.limit === 0;
                         
                         let visualPct = isUnbudgeted ? Math.min((item.total / totalExpense)*100, 100) : budgetInfo.pct;
-                        const color = budgetInfo.isOver100 ? 'var(--danger-color)' : getCatColor(index);
+                        const color = budgetInfo.isOver100 ? 'var(--danger-color)' : getCatColor(index, item.name);
 
                         return (
                           <div key={item.name} className="cat-item">
@@ -850,7 +870,7 @@ function App() {
                       <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
                       <XAxis dataKey="name" stroke="var(--text-tertiary)" fontSize={10} tickLine={false} axisLine={false} />
                       <YAxis stroke="var(--text-tertiary)" fontSize={10} tickFormatter={(val) => `R$${val/1000}k`} tickLine={false} axisLine={false} />
-                      <RechartsTooltip contentStyle={{backgroundColor: 'var(--surface-color)', borderColor: 'var(--border-color)', borderRadius: '8px', fontSize: '11px'}} />
+                      <RechartsTooltip contentStyle={{backgroundColor: 'var(--surface-color)', borderColor: 'var(--border-color)', borderRadius: '8px', fontSize: '11px', color: 'var(--text-primary)'}} itemStyle={{color: 'var(--text-primary)'}} labelStyle={{color: 'var(--text-secondary)'}} />
                       <Legend iconType="circle" wrapperStyle={{fontSize: '11px', color: 'var(--text-secondary)'}} />
                       <Line type="monotone" dataKey="Saldo" stroke="var(--primary-color)" strokeWidth={2} dot={{fill: 'var(--primary-color)', r: 4}} activeDot={{r: 6}} />
                       <Line type="monotone" dataKey="Receitas" stroke="var(--success-color)" strokeWidth={1} strokeDasharray="5 5" dot={false} />
@@ -867,10 +887,10 @@ function App() {
                         <PieChart>
                           <Pie data={categoryStats} innerRadius={50} outerRadius={70} paddingAngle={5} dataKey="total">
                             {categoryStats.map((entry, index) => (
-                              <Cell key={`cell-${index}`} fill={getCatColor(index)} stroke="rgba(0,0,0,0)" />
+                              <Cell key={`cell-${index}`} fill={getCatColor(index, entry.name)} stroke="rgba(0,0,0,0)" />
                             ))}
                           </Pie>
-                          <RechartsTooltip formatter={(val) => `R$ ${formatMoney(val)}`} contentStyle={{backgroundColor: 'var(--surface-color)', borderColor: 'var(--border-color)', borderRadius: '8px', fontSize: '11px'}} />
+                          <RechartsTooltip formatter={(val) => `R$ ${formatMoney(val)}`} contentStyle={{backgroundColor: 'var(--surface-color)', borderColor: 'var(--border-color)', borderRadius: '8px', fontSize: '11px', color: 'var(--text-primary)'}} itemStyle={{color: 'var(--text-primary)'}} labelStyle={{color: 'var(--text-secondary)'}} />
                         </PieChart>
                       </ResponsiveContainer>
                    ) : (
@@ -908,7 +928,7 @@ function App() {
                         {hasBudget && (
                            <div style={{width: 100, marginRight: 15}}>
                              <div className="progress-bg">
-                               <div className="progress-fill" style={{width: `${info.pct}%`, backgroundColor: info.isOver100 ? 'var(--danger-color)' : 'var(--primary-color)'}}></div>
+                               <div className="progress-fill" style={{width: `${info.pct}%`, backgroundColor: info.isOver100 ? 'var(--danger-color)' : getCatColor(0, cat)}}></div>
                              </div>
                            </div>
                         )}
