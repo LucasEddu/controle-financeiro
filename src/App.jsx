@@ -595,7 +595,7 @@ function App() {
       <aside className="sidebar">
         <div className="sidebar-brand">
           <div className="brand-icon">Δ</div>
-          <span>MIDNIGHT</span>
+          <span>AMBER</span>
         </div>
         
         <nav className="sidebar-nav">
