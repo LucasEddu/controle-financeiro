@@ -2,13 +2,13 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link id="favicon" rel="icon" type="image/svg+xml" href="/karonte-logo-dark.svg" />
+    <link id="favicon" rel="icon" type="image/svg+xml" href="/karonte-favicon-dark.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Karonte</title>
     <script>
       (function() {
         var theme = localStorage.getItem('finance_theme') || 'dark';
-        document.getElementById('favicon').href = theme === 'dark' ? '/karonte-logo-dark.svg' : '/karonte-logo-light.svg';
+        document.getElementById('favicon').href = theme === 'dark' ? '/karonte-favicon-dark.svg' : '/karonte-favicon-light.svg';
       })();
     </script>
   </head>
