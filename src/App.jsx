@@ -73,10 +73,6 @@ function App() {
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
     localStorage.setItem('finance_theme', theme);
-    const favicon = document.getElementById('favicon');
-    if (favicon) {
-      favicon.href = theme === 'dark' ? '/karonte-logo-dark.svg' : '/karonte-logo-light.svg';
-    }
   }, [theme]);
   const toggleTheme = () => setTheme(prev => prev === 'dark' ? 'light' : 'dark');
 
