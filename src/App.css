@@ -578,13 +578,15 @@ h1, h2, h3, h4 { font-weight: 500; }
 }
 
 .month-select, .year-select {
-  background-color: var(--surface-color);
-  border: 0.5px solid var(--border-color);
+  background-color: rgba(255, 255, 255, 0.03);
+  border: none;
   color: var(--text-primary);
-  font-size: 11px;
-  padding: 4px 8px;
-  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  padding: 6px 14px;
+  border-radius: 12px;
   outline: none;
+  cursor: pointer;
 }
 
 .export-btn {
