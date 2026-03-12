@@ -82,8 +82,9 @@ h1, h2, h3, h4 { font-weight: 500; }
   align-items: center;
   padding: 1rem 0;
   margin-bottom: 1.5rem;
-  border-bottom: 0.5px solid var(--border-light);
+  border-bottom: 0.5px solid var(--border-color);
   width: 100%;
+  background-color: transparent;
 }
 
 .user-info {
@@ -174,7 +175,7 @@ h1, h2, h3, h4 { font-weight: 500; }
 .balance-value {
   font-size: 26px;
   font-weight: 500;
-  color: var(--primary-color);
+  color: var(--balance-color);
   margin-bottom: 14px;
 }
 
@@ -245,10 +246,6 @@ h1, h2, h3, h4 { font-weight: 500; }
   height: 100%;
   border-radius: 3px;
 }
-
-.fill-moradia { background-color: var(--cat-moradia); }
-.fill-alimentacao { background-color: var(--cat-alimentacao); }
-.fill-lazer { background-color: var(--cat-lazer); }
 
 .badge-alert {
   font-size: 9px;

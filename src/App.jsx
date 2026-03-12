@@ -301,11 +301,18 @@ function App() {
 
   // --------- HELPERS ---------
   const formatMoney = (val) => val.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  const getCatColor = (index, catName) => {
-    if (catName === 'Moradia') return 'var(--cat-moradia)';
-    if (catName === 'Alimentação') return 'var(--cat-alimentacao)';
-    if (catName === 'Lazer') return 'var(--cat-lazer)';
+  const getCatFill = (index, catName) => {
+    if (catName === 'Moradia') return 'var(--cat-moradia-fill)';
+    if (catName === 'Alimentação') return 'var(--cat-alimentacao-fill)';
+    if (catName === 'Lazer') return 'var(--cat-lazer-fill)';
     return COLORS[index % COLORS.length];
+  };
+
+  const getCatTrack = (catName) => {
+    if (catName === 'Moradia') return 'var(--cat-moradia-track)';
+    if (catName === 'Alimentação') return 'var(--cat-alimentacao-track)';
+    if (catName === 'Lazer') return 'var(--cat-lazer-track)';
+    return 'var(--border-medium)';
   };
 
   // Budget Manager logic
@@ -682,7 +689,8 @@ function App() {
                         const isUnbudgeted = budgetInfo.limit === 0;
                         
                         let visualPct = isUnbudgeted ? Math.min((item.total / totalExpense)*100, 100) : budgetInfo.pct;
-                        const color = budgetInfo.isOver100 ? 'var(--danger-color)' : getCatColor(index, item.name);
+                        const fillCol = budgetInfo.isOver100 ? 'var(--danger-color)' : getCatFill(index, item.name);
+                        const trackCol = getCatTrack(item.name);
 
                         return (
                           <div key={item.name} className="cat-item">
@@ -690,11 +698,11 @@ function App() {
                               <span className="cat-name">{item.name}</span>
                               <div>
                                 {budgetInfo.isOver80 && <span className="badge-alert">{visualPct.toFixed(0)}% Util</span>}
-                                <span className="cat-value" style={{color: color}}>R$ {formatMoney(item.total)}</span>
+                                <span className="cat-value" style={{color: fillCol}}>R$ {formatMoney(item.total)}</span>
                               </div>
                             </div>
-                            <div className="progress-bg" title={!isUnbudgeted ? `Limite: R$ ${budgetInfo.limit}` : ''}>
-                              <div className="progress-fill" style={{width: `${visualPct}%`, backgroundColor: color}}></div>
+                            <div className="progress-bg" title={!isUnbudgeted ? `Limite: R$ ${budgetInfo.limit}` : ''} style={{backgroundColor: trackCol}}>
+                              <div className="progress-fill" style={{width: `${visualPct}%`, backgroundColor: fillCol}}></div>
                             </div>
                           </div>
                         )
@@ -894,7 +902,7 @@ function App() {
                         <PieChart>
                           <Pie data={categoryStats} innerRadius={50} outerRadius={70} paddingAngle={5} dataKey="total">
                             {categoryStats.map((entry, index) => (
-                              <Cell key={`cell-${index}`} fill={getCatColor(index, entry.name)} stroke="rgba(0,0,0,0)" />
+                              <Cell key={`cell-${index}`} fill={getCatFill(index, entry.name)} stroke="rgba(0,0,0,0)" />
                             ))}
                           </Pie>
                           <RechartsTooltip formatter={(val) => `R$ ${formatMoney(val)}`} contentStyle={{backgroundColor: 'var(--surface-color)', borderColor: 'var(--border-color)', borderRadius: '8px', fontSize: '11px', color: 'var(--text-primary)'}} itemStyle={{color: 'var(--text-primary)'}} labelStyle={{color: 'var(--text-secondary)'}} />
@@ -923,6 +931,8 @@ function App() {
                      const catSpent = filteredTransactions.filter(t => t.type === 'expense' && t.category === cat).reduce((acc, curr) => acc + curr.amount, 0);
                      const info = getCategoryBudgetInfo(cat, catSpent);
                      const hasBudget = info.limit > 0;
+                     const fillCol = info.isOver100 ? 'var(--danger-color)' : getCatFill(0, cat);
+                     const trackCol = getCatTrack(cat);
                      
                      return (
                       <div key={cat} className="history-item" onClick={() => handleBudgetChange(cat)} style={{cursor: 'pointer'}}>
@@ -934,8 +944,8 @@ function App() {
                         </div>
                         {hasBudget && (
                            <div style={{width: 100, marginRight: 15}}>
-                             <div className="progress-bg">
-                               <div className="progress-fill" style={{width: `${info.pct}%`, backgroundColor: info.isOver100 ? 'var(--danger-color)' : getCatColor(0, cat)}}></div>
+                             <div className="progress-bg" style={{backgroundColor: trackCol}}>
+                               <div className="progress-fill" style={{width: `${info.pct}%`, backgroundColor: fillCol}}></div>
                              </div>
                            </div>
                         )}

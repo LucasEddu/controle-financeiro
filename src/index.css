@@ -1,74 +1,81 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
 :root, [data-theme="dark"] {
-  /* Amber Warm Theme (Dark) */
-  --bg-color: #150f08;        
-  --surface-color: #1c140c;   
-  --border-color: #382414;
-  --border-light: rgba(245, 158, 11, 0.06);
-  --border-medium: rgba(245, 158, 11, 0.12);
-  --text-primary: #fef3c7;
-  --text-secondary: rgba(253, 230, 138, 0.75);
-  --text-tertiary: rgba(253, 230, 138, 0.45);
-  --text-highlight: #fcd34d;
+  /* Escuro customizado a partir dos dados do chatbot escort */
+  --bg-color: #0e0808;        
+  --surface-color: #160c0c;   
+  --border-color: #2a1010;
+  --border-light: rgba(42, 16, 16, 0.5);
+  --border-medium: rgba(42, 16, 16, 0.8);
+  --text-primary: #fde8e0;
+  --text-secondary: rgba(253, 232, 224, 0.60);
+  --text-tertiary: rgba(253, 232, 224, 0.50);
+  --text-highlight: #D85A30;
   
-  --primary-color: #f59e0b;
-  --primary-bg: #78350f;
-  --primary-text: #fde68a;
+  --primary-color: #D85A30;
+  --primary-bg: rgba(216, 90, 48, 0.15);
+  --primary-text: #ffffff;
+  --balance-color: #D85A30; 
   
-  --success-color: #34d399;
-  --success-bg: #064e3b;
+  --success-color: #0F6E56;
+  --success-bg: #e1f5ee;
   
-  --danger-color: #f87171;
-  --danger-bg: #450a0a;
-  --danger-border: rgba(248, 113, 113, 0.25);
+  --danger-color: #A32D2D;
+  --danger-bg: #fff0f0;
+  --danger-border: rgba(240, 149, 149, 0.5);
 
-  /* Categories */
-  --cat-alimentacao: #5DCAA5;
-  --cat-moradia: var(--primary-color);
-  --cat-lazer: #f87171;
+  /* Categories track and fill */
+  --cat-alimentacao-fill: #1D9E75;
+  --cat-alimentacao-track: #e1f5ee;
+  --cat-moradia-fill: #D85A30;
+  --cat-moradia-track: #FAECE7;
+  --cat-lazer-fill: #E24B4A;
+  --cat-lazer-track: #fde8e8;
 
   /* Chatbot */
-  --chat-bg: #0a0900;
-  --chat-bot-bubble: #1a1505;
-  --chat-bot-border: #2e2008;
-  --chat-user-bubble: #854F0B;
-  --chat-user-text: #fef3c7;
+  --chat-bg: #0e0808;
+  --chat-bot-bubble: #160c0c;
+  --chat-bot-border: #2a1010;
+  --chat-user-bubble: #993C1D;
+  --chat-user-text: #fde8e0;
 }
 
 [data-theme="light"] {
-  /* Amber Warm Theme (Light) */
-  --bg-color: #fffaf0;        
+  --bg-color: #fff7f5;        
   --surface-color: #ffffff;   
-  --border-color: #fde68a;
-  --border-light: rgba(180, 83, 9, 0.04);
-  --border-medium: rgba(180, 83, 9, 0.08);
-  --text-primary: #451a03;
-  --text-secondary: #78350f;
-  --text-tertiary: #b45309;
-  --text-highlight: #d97706;
+  --border-color: #f5c4b3;
+  --border-light: rgba(245, 196, 179, 0.4);
+  --border-medium: rgba(245, 196, 179, 0.8);
+  --text-primary: #4A1B0C;
+  --text-secondary: rgba(216, 90, 48, 0.60);
+  --text-tertiary: rgba(216, 90, 48, 0.50);
+  --text-highlight: #D85A30;
   
-  --primary-color: #d97706;
-  --primary-bg: #fef3c7;
-  --primary-text: #92400e;
+  --primary-color: #D85A30;
+  --primary-bg: rgba(216, 90, 48, 0.15); 
+  --primary-text: #ffffff;
+  --balance-color: #993C1D;
   
-  --success-color: #10b981;
-  --success-bg: #d1fae5;
+  --success-color: #0F6E56;
+  --success-bg: #e1f5ee;
   
-  --danger-color: #E24B4A;
-  --danger-bg: #fef2f2;
-  --danger-border: rgba(226, 75, 74, 0.25);
+  --danger-color: #A32D2D;
+  --danger-bg: #fff0f0;
+  --danger-border: rgba(240, 149, 149, 0.5);
 
-  /* Categories */
-  --cat-alimentacao: #5DCAA5;
-  --cat-moradia: var(--primary-color);
-  --cat-lazer: #E24B4A;
+  /* Categories track and fill */
+  --cat-alimentacao-fill: #1D9E75;
+  --cat-alimentacao-track: #e1f5ee;
+  --cat-moradia-fill: #D85A30;
+  --cat-moradia-track: #FAECE7;
+  --cat-lazer-fill: #E24B4A;
+  --cat-lazer-track: #fde8e8;
 
   /* Chatbot */
-  --chat-bg: #fffbf0;
+  --chat-bg: #fff7f5;
   --chat-bot-bubble: #ffffff;
-  --chat-bot-border: #e8d5a0;
-  --chat-user-bubble: #BA7517;
+  --chat-bot-border: #f5c4b3;
+  --chat-user-bubble: #D85A30;
   --chat-user-text: #ffffff;
 }
 
@@ -99,6 +106,6 @@ button, input, select, textarea {
 }
 
 ::selection {
-  background-color: var(--primary-bg);
+  background-color: var(--primary-color);
   color: var(--primary-text);
 }
