@@ -613,11 +613,11 @@ function App() {
       <aside className="sidebar">
         <div className="sidebar-brand">
           <img 
+             id="logo"
              src={theme === 'dark' ? '/karonte-logo-dark.svg' : '/karonte-logo-light.svg'} 
-             alt="Karonte Logo" 
-             style={{width: 24, height: 24, objectFit: 'contain'}} 
+             alt="Karonte" 
+             style={{height: 40, width: 'auto'}} 
           />
-          <span>KARONTE</span>
         </div>
         
         <nav className="sidebar-nav">
