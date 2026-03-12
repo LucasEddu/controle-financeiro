@@ -854,7 +854,7 @@ function App() {
               </section>
 
               <section className="card form-section">
-                <form onSubmit={handleAddTransaction} className="transaction-form" style={{gridTemplateColumns: '2fr 1fr 1fr 1fr auto'}}>
+                <form onSubmit={handleAddTransaction} className="transaction-form">
                   <div className="form-group">
                     <label>Descrição</label>
                     <input type="text" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Ex: Conta de Luz" required />
