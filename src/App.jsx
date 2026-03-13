@@ -99,6 +99,9 @@ function App() {
 
   // --------- STATE: BUDGETS & GOALS ---------
   const [budgets, setBudgets] = useState({});
+  const [budgetModalOpen, setBudgetModalOpen] = useState(false);
+  const [activeBudgetCat, setActiveBudgetCat] = useState('');
+  const [budgetInputValue, setBudgetInputValue] = useState('');
 
   // --------- STATE: UI NAVIGATION & FILTERS ---------
   const [currentView, setCurrentView] = useState('dashboard');
@@ -472,19 +475,30 @@ function App() {
     };
   };
 
-  const handleBudgetChange = async (catName) => {
-    const val = prompt(`Definir limite mensal para ${catName} (Apenas números, 0 para remover):`);
-    if (val === null) return;
-    const num = parseFloat(val);
-    if (isNaN(num)) return;
+  const handleBudgetChange = (catName) => {
+    const currentLimit = budgets[catName] || 0;
+    setActiveBudgetCat(catName);
+    setBudgetInputValue(currentLimit > 0 ? currentLimit.toString() : '');
+    setBudgetModalOpen(true);
+  };
+
+  const handleConfirmBudget = async () => {
+    const num = parseFloat(budgetInputValue.replace(',', '.'));
+    if (isNaN(num) && budgetInputValue !== '') {
+       alert('Por favor, insira um número válido.');
+       return;
+    }
     
+    const finalVal = isNaN(num) ? 0 : num;
     const newBudgets = { ...budgets };
-    if (num === 0) delete newBudgets[catName];
-    else newBudgets[catName] = num;
+    
+    if (finalVal === 0) delete newBudgets[activeBudgetCat];
+    else newBudgets[activeBudgetCat] = finalVal;
 
     try {
        await saveUserBudgets(newBudgets);
        setBudgets(newBudgets);
+       setBudgetModalOpen(false);
     } catch(err) { alert('Erro ao salvar orçamento.')}
   };
 
@@ -1580,6 +1594,38 @@ function App() {
             </form>
           </div>
       </aside>
+
+      {/* BUDGET MODAL */}
+      {budgetModalOpen && (
+        <div className="modal-overlay" onClick={() => setBudgetModalOpen(false)}>
+           <div className="budget-modal-card" onClick={e => e.stopPropagation()}>
+              <div className="modal-header">
+                 <h3>Limite para {activeBudgetCat}</h3>
+                 <button className="chat-close-btn" onClick={() => setBudgetModalOpen(false)}>×</button>
+              </div>
+              <div className="modal-body">
+                 <p className="modal-subtitle">Defina o teto de gastos mensal para esta categoria.</p>
+                 <div className="budget-input-wrapper">
+                    <span className="currency-prefix">R$</span>
+                    <input 
+                      type="number" 
+                      step="0.01" 
+                      placeholder="0,00" 
+                      className="budget-main-input"
+                      value={budgetInputValue}
+                      onChange={e => setBudgetInputValue(e.target.value)}
+                      autoFocus
+                    />
+                 </div>
+                 <p className="modal-hint">Digite 0 para remover o limite.</p>
+              </div>
+              <div className="modal-footer">
+                 <button className="btn-secondary" onClick={() => setBudgetModalOpen(false)}>Cancelar</button>
+                 <button className="btn-confirm" onClick={handleConfirmBudget}>Salvar Limite</button>
+              </div>
+           </div>
+        </div>
+      )}
     </div>
   );
 }
