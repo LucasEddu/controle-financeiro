@@ -12,6 +12,7 @@ import { login, register, logout, getAllUsers, toggleUserStatus, updateUsername,
 import { addTransaction, getUserTransactions, deleteTransaction } from './services/transactionService';
 import { getUserBudgets, saveUserBudgets } from './services/budgetService';
 import { getUserCategories, saveUserCategories } from './services/categoriesService';
+import { getCachedInsight, saveInsightToCache } from './services/insightService';
 
 class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -171,6 +172,36 @@ function App() {
       }
     }
   }, [chatOpen, transactions]);
+
+  // Detect month change for Automatic Insight
+  useEffect(() => {
+    if (currentUser && transactions.length > 0 && !dataLoading) {
+      const checkInsight = async () => {
+        const today = new Date();
+        const currentM = today.getMonth() + 1;
+        const currentY = today.getFullYear();
+        const lastCheck = localStorage.getItem(`karonte_last_insight_${currentUser.uid}`);
+        
+        // Se não houver registro ou se o mês/ano mudou
+        if (!lastCheck || lastCheck !== `${currentM}_${currentY}`) {
+          // Precisamos do insight do mês ANTERIOR
+          const prevDate = new Date();
+          prevDate.setMonth(today.getMonth() - 1);
+          const pM = prevDate.getMonth() + 1;
+          const pY = prevDate.getFullYear();
+          
+          const insight = await generateAIInsight(pM, pY);
+          if (insight) {
+            setMessages(prev => [...prev, { text: insight, sender: 'bot' }]);
+            setChatOpen(true);
+            setUnreadCount(prev => prev + 1);
+            localStorage.setItem(`karonte_last_insight_${currentUser.uid}`, `${currentM}_${currentY}`);
+          }
+        }
+      };
+      checkInsight();
+    }
+  }, [currentUser, transactions.length, dataLoading]);
 
   // Fetch user data when currentUser changes
   useEffect(() => {
@@ -561,6 +592,55 @@ function App() {
     } catch(err) { alert('Erro ao salvar orçamento.')}
   };
 
+  // --------- AI MONTHLY INSIGHTS LOGIC ---------
+  
+  const buildMonthlyInsightContext = (month, year) => {
+    const monthTransactions = transactions.filter(t => {
+      const d = new Date(t.date);
+      return d.getMonth() + 1 === month && d.getFullYear() === year;
+    });
+
+    const income = monthTransactions.filter(t => t.type === 'income').reduce((acc, crr) => acc + crr.amount, 0);
+    const expense = monthTransactions.filter(t => t.type === 'expense').reduce((acc, crr) => acc + crr.amount, 0);
+    
+    // Group by category to find top expense
+    const catAnalysis = {};
+    monthTransactions.filter(t => t.type === 'expense').forEach(t => {
+       catAnalysis[t.category] = (catAnalysis[t.category] || 0) + t.amount;
+    });
+    
+    const sortedCats = Object.entries(catAnalysis).sort((a, b) => b[1] - a[1]);
+    const topCategory = sortedCats.length > 0 ? sortedCats[0][0] : 'Nenhuma';
+
+    return { month, year, income, expense, balance: income - expense, topCategory };
+  };
+
+  const generateAIInsight = async (month, year) => {
+    if (!currentUser) return null;
+    
+    // 1. Check Cache
+    const cached = await getCachedInsight(currentUser.uid, month, year);
+    if (cached) return cached;
+
+    // 2. Build Context
+    const ctx = buildMonthlyInsightContext(month, year);
+    
+    // 3. Simulate IA response (Karonte Voice)
+    // Here we could call a real LLM API, but we'll use a template that mimics the requested tone
+    const insight = `Seu resumo de ${month}/${year} chegou! ✨
+
+💰 Você teve R$ ${formatMoney(ctx.income)} em entradas e R$ ${formatMoney(ctx.expense)} em saídas, fechando o mês com um saldo de R$ ${formatMoney(ctx.balance)}. 
+
+🔍 Notei que seu maior foco de gastos foi em **${ctx.topCategory}**. Se esse valor estiver dentro do planejado, ótimo! Caso contrário, que tal colocar um limite nessa categoria para o próximo mês?
+
+🚀 Continue assim! Manter a constância é o segredo para sua liberdade financeira. No que mais posso te ajudar hoje?`;
+
+    // 4. Save to Cache
+    await saveInsightToCache(currentUser.uid, month, year, insight);
+    
+    return insight;
+  };
+
   // --------- CUSTOM CATEGORIES HANDLERS ---------
   const handleAddCustomCategory = async () => {
     const name = newCatName.trim();
@@ -755,7 +835,7 @@ function App() {
     };
   };
 
-  const handleChatSubmit = (e) => {
+  const handleChatSubmit = async (e) => {
     e.preventDefault();
     const input = chatInput.trim();
     if (!input) return;
@@ -789,6 +869,34 @@ function App() {
 
     // 3. Process Multiple Intentions (Split by " e " or ",")
     const parts = input.split(/\s+e\s+|,\s+/);
+    
+    // Check for Monthly Insight Intent first (as it might be async)
+    if (/(resumo de|como foi|resumo do mes)/.test(input.toLowerCase())) {
+        const monthsMap = {
+          'janeiro': 1, 'fevereiro': 2, 'março': 3, 'abril': 4, 'maio': 5, 'junho': 6,
+          'julho': 7, 'agosto': 8, 'setembro': 9, 'outubro': 10, 'novembro': 11, 'dezembro': 12
+        };
+        const lowerInput = input.toLowerCase();
+        let tM = selectedMonth;
+        let tY = selectedYear;
+
+        Object.keys(monthsMap).forEach(mName => {
+          if (lowerInput.includes(mName)) tM = monthsMap[mName];
+        });
+
+        if (lowerInput.includes('mês passado')) {
+          const d = new Date();
+          d.setMonth(d.getMonth() - 1);
+          tM = d.getMonth() + 1;
+          tY = d.getFullYear();
+        }
+
+        const insight = await generateAIInsight(tM, tY);
+        setChatMessages(prev => [...prev, { id: crypto.randomUUID(), sender: 'bot', text: insight }]);
+        if (!chatOpen) setUnreadCount(prev => prev + 1);
+        return;
+    }
+
     const results = parts.map(p => processChatMessage(p));
     
     setTimeout(() => {
