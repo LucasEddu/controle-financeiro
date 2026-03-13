@@ -531,7 +531,7 @@ function App() {
     { id: 'welcome', sender: 'bot', text: 'Olá! Sou seu assistente. Me mande algo como "cinema 50" ou me pergunte "qual meu saldo?".' }
   ]);
   const [chatInput, setChatInput] = useState('');
-  const [pendingAction, setPendingAction] = useState(null);
+  const [pendingActions, setPendingActions] = useState([]); // Array para suportar múltiplos lançamentos
 
   const processChatMessage = (text) => {
     // 1. Normalização profunda
@@ -558,7 +558,7 @@ function App() {
        return { type: 'answer', text: `Resumo do mês: Receitas R$ ${formatMoney(totalIncome)}, Despesas R$ ${formatMoney(totalExpense)}. Seu saldo está em R$ ${formatMoney(balance)} (${percent}% do total).` };
     }
     if (/(ajuda|socorro|que voce faz|comandos)/.test(normalized)) {
-       return { type: 'answer', text: 'Eu posso registrar seus gastos (ex: "50 no mercado") ou responder sobre suas finanças (ex: "qual meu saldo?", "maior gasto").' };
+       return { type: 'answer', text: 'Eu sou o Karonte! Posso registrar seus gastos (ex: "50 pizza e 20 uber", "ontem gastei 30 com café") ou responder sobre suas finanças (ex: "qual meu saldo?", "maior gasto do mês?").' };
     }
     if (/(categoria|quais categorias)/.test(normalized)) {
        return { type: 'answer', text: `Suas categorias de despesa são: ${expenseCategories.join(', ')}.` };
@@ -578,24 +578,44 @@ function App() {
        return { type: 'answer', text: 'Não consegui identificar o valor. Tente algo como "50 lanche" ou "1.5k salario".' };
     }
 
-    // 4. Extração de Descrição e Limpeza
-    let rawDesc = normalized.replace(moneyMatch[0], '').trim();
+    // 4. Inteligência Temporal (Datas Naturais)
+    let finalDate = new Date();
+    if (normalized.includes('ontem')) {
+      finalDate.setDate(finalDate.getDate() - 1);
+    } else if (normalized.includes('anteontem')) {
+      finalDate.setDate(finalDate.getDate() - 2);
+    } else {
+      const days = {
+        'segunda': 1, 'terca': 2, 'quarta': 3, 'quinta': 4, 'sexta': 5, 'sabado': 6, 'domingo': 0
+      };
+      for (let [day, code] of Object.entries(days)) {
+        if (normalized.includes(day)) {
+          const currentDay = finalDate.getDay();
+          const diff = (currentDay < code) ? (7 - (code - currentDay)) : (currentDay - code);
+          finalDate.setDate(finalDate.getDate() - diff);
+          break;
+        }
+      }
+    }
+
+    // 5. Extração de Descrição e Limpeza
+    let rawDesc = normalized.replace(moneyMatch[0], '')
+      .replace(/(ontem|anteontem|segunda|terca|quarta|quinta|sexta|sabado|domingo)/, '')
+      .trim();
     const stopwords = /^(com|no|na|de|do|da|pelo|por|o|a|um|uma|em|pro|pra|para|no|nos|nas)\s+/;
     let cleanedDesc = rawDesc.replace(stopwords, '').trim();
     
     if (!cleanedDesc || cleanedDesc.length < 2) cleanedDesc = 'Registro via Assistente';
 
-    // 5. Inferência de Tipo
+    // 6. Inferência de Tipo e Categoria
     const incomeKeywords = ['salario', 'freelance', 'receita', 'renda', 'bonus', 'pagamento', 'ganhei', 'venda', 'pix recebido', 'reembolso'];
-    let inferType = 'expense';
-    if (incomeKeywords.some(kw => normalized.includes(kw))) inferType = 'income';
+    let inferType = incomeKeywords.some(kw => normalized.includes(kw)) ? 'income' : 'expense';
 
     if (inferType === 'expense') {
       const matchCustomIncome = customCategories.income.find(c => normalized.includes(c.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")));
       if (matchCustomIncome) inferType = 'income';
     }
 
-    // 6. Mapeamento de Categorias
     let inferCategory = 'Outros';
     const categoryMaps = {
       'Lazer': /(academia|cinema|bar|lazer|balada|jogo|game|festa|viagem|netflix|streaming|spotify|show|teatro|shopping|passeio)/,
@@ -607,67 +627,110 @@ function App() {
 
     if (inferType === 'expense') {
        const matchCustom = customCategories.expense.find(c => normalized.includes(c.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")));
-       if (matchCustom) {
-         inferCategory = matchCustom;
-       } else {
+       if (matchCustom) inferCategory = matchCustom;
+       else {
          for (const [catName, regex] of Object.entries(categoryMaps)) {
-           if (regex.test(normalized)) {
-             inferCategory = catName;
-             break;
-           }
+           if (regex.test(normalized)) { inferCategory = catName; break; }
          }
        }
     } else {
        const matchCustom = customCategories.income.find(c => normalized.includes(c.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")));
-       if (matchCustom) {
-         inferCategory = matchCustom;
-       } else if (/(salario|pagamento|pro-labore)/.test(normalized)) inferCategory = 'Salário';
+       if (matchCustom) inferCategory = matchCustom;
+       else if (/(salario|pagamento|pro-labore)/.test(normalized)) inferCategory = 'Salário';
        else if (/(freelance|projeto|job|freela)/.test(normalized)) inferCategory = 'Freelance';
        else if (/(investimento|dividendos|juros|rendimento)/.test(normalized)) inferCategory = 'Investimentos';
+    }
+
+    // 7. Alertas de Orçamento Proativos
+    let budgetWarning = '';
+    if (inferType === 'expense') {
+       const currentSpent = categoryStats.find(s => s.name === inferCategory)?.total || 0;
+       const info = getCategoryBudgetInfo(inferCategory, currentSpent + numericValue);
+       if (info.isOver100) {
+          budgetWarning = `\n\n⚠️ Atenção: este gasto fará você ultrapassar o limite de R$ ${formatMoney(info.limit)} para ${inferCategory}.`;
+       } else if (info.isOver80) {
+          budgetWarning = `\n\n💡 Nota: você está chegando perto do limite de ${inferCategory} (${info.pct.toFixed(0)}%).`;
+       }
     }
 
     cleanedDesc = cleanedDesc.charAt(0).toUpperCase() + cleanedDesc.slice(1);
 
     return {
        type: 'action',
-       text: 'Entendi! Deseja registrar a seguinte movimentação?',
+       text: `Entendi! Deseja registrar a seguinte movimentação?${budgetWarning}`,
        payload: {
           description: cleanedDesc,
           amount: numericValue,
           type: inferType,
-          category: inferCategory
+          category: inferCategory,
+          date: finalDate.toISOString()
        }
     };
   };
 
   const handleChatSubmit = (e) => {
     e.preventDefault();
-    if (!chatInput.trim()) return;
+    const input = chatInput.trim();
+    if (!input) return;
 
-    // Reject new input if there is a pending confirmation
-    if (pendingAction) {
-       if (chatInput.toLowerCase() === 'sim') { handleChatConfirm(); return; }
-       if (chatInput.toLowerCase() === 'não' || chatInput.toLowerCase() === 'nao') { handleChatCancel(); return; }
-       alert("Por favor, confirme (sim) ou cancele (não) a ação atual antes de enviar outra mensagem.");
-       return;
+    // 1. Handle Simple Confirm/Cancel for the CURRENT pending action
+    if (pendingActions.length > 0) {
+       const normalized = input.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+       if (normalized === 'sim' || normalized === 's') { handleChatConfirm(); return; }
+       if (normalized === 'nao' || normalized === 'n') { handleChatCancel(); return; }
+       
+       // 2. Handle Potential Correction if not Sim/Nao
+       const correction = processChatMessage(input);
+       if (correction.type === 'action') {
+          const updated = [...pendingActions];
+          updated[0] = { ...updated[0], ...correction.payload };
+          setPendingActions(updated);
+          
+          setChatMessages(prev => [
+            ...prev, 
+            { id: crypto.randomUUID(), sender: 'user', text: input },
+            { id: crypto.randomUUID(), sender: 'bot', text: 'Entendi a correção! Atualizei o resumo abaixo. Deseja confirmar agora?' }
+          ]);
+          setChatInput('');
+          return;
+       }
     }
 
-    const userMsg = { id: crypto.randomUUID(), sender: 'user', text: chatInput };
+    const userMsg = { id: crypto.randomUUID(), sender: 'user', text: input };
     setChatMessages(prev => [...prev, userMsg]);
-    
-    // Process NLP
-    const response = processChatMessage(chatInput);
     setChatInput('');
 
+    // 3. Process Multiple Intentions (Split by " e " or ",")
+    const parts = input.split(/\s+e\s+|,\s+/);
+    const results = parts.map(p => processChatMessage(p));
+    
     setTimeout(() => {
-       const botMsg = { id: crypto.randomUUID(), sender: 'bot', text: response.text };
-       setChatMessages(prev => [...prev, botMsg]);
+       const answers = results.filter(r => r.type === 'answer');
+       const actions = results.filter(r => r.type === 'action').map(r => r.payload);
 
-       if (response.type === 'action') {
-          setPendingAction(response.payload);
+       // Show answers if present
+       if (answers.length > 0) {
+          answers.forEach(a => {
+            setChatMessages(prev => [...prev, { id: crypto.randomUUID(), sender: 'bot', text: a.text }]);
+          });
        }
+
+       // Queue actions
+       if (actions.length > 0) {
+          setPendingActions(prev => [...prev, ...actions]);
+          if (answers.length === 0) {
+             const welcomeMsg = actions.length > 1 
+                ? `Encontrei ${actions.length} registros! Vamos confirmar um por um?`
+                : results.find(r => r.type === 'action').text;
+             setChatMessages(prev => [...prev, { id: crypto.randomUUID(), sender: 'bot', text: welcomeMsg }]);
+          }
+       } else if (answers.length === 0) {
+          // Fallback if nothing was identified
+          setChatMessages(prev => [...prev, { id: crypto.randomUUID(), sender: 'bot', text: 'Não entendi seu pedido. Tente "50 pizza" ou "qual meu saldo?".' }]);
+       }
+
        if (!chatOpen) setUnreadCount(prev => prev + 1);
-    }, 600); // Artificial thinking delay
+    }, 600);
   };
 
   useEffect(() => {
@@ -675,17 +738,24 @@ function App() {
   }, [chatOpen]);
 
   const handleChatConfirm = async () => {
-     if (!pendingAction) return;
+     if (pendingActions.length === 0) return;
+     const action = pendingActions[0];
      
-     const now = new Date();
-     const isCurrentPeriod = (selectedMonth === now.getMonth() + 1) && (selectedYear === now.getFullYear());
-     const dateObj = isCurrentPeriod ? now : new Date(selectedYear, selectedMonth - 1, 1, 12, 0, 0); 
+     // Use the extracted date if available, otherwise fallback to smart period date
+     let dateObj;
+     if (action.date) {
+       dateObj = new Date(action.date);
+     } else {
+       const now = new Date();
+       const isCurrentPeriod = (selectedMonth === now.getMonth() + 1) && (selectedYear === now.getFullYear());
+       dateObj = isCurrentPeriod ? now : new Date(selectedYear, selectedMonth - 1, 1, 12, 0, 0); 
+     }
 
      const newTransaction = {
-      description: pendingAction.description,
-      amount: pendingAction.amount,
-      type: pendingAction.type,
-      category: pendingAction.category,
+      description: action.description,
+      amount: action.amount,
+      type: action.type,
+      category: action.category,
       isRecurring: false,
       date: dateObj.toISOString(), 
       displayDate: dateObj.toLocaleDateString('pt-BR')
@@ -694,29 +764,38 @@ function App() {
     try {
       const savedDoc = await addTransaction(newTransaction);
       setTransactions([savedDoc, ...transactions]);
-      setPendingAction(null);
+      
+      const updatedActions = pendingActions.slice(1);
+      setPendingActions(updatedActions);
       setChatInput('');
 
       setChatMessages(prev => [
          ...prev, 
          { id: crypto.randomUUID(), sender: 'user', text: 'Sim' }, // Visual feedback
-         { id: crypto.randomUUID(), sender: 'bot', text: `Feito! Registrei ${pendingAction.type === 'income' ? 'a receita' : 'a despesa'} com sucesso no seu dashboard.` }
+         { id: crypto.randomUUID(), sender: 'bot', text: updatedActions.length > 0 
+           ? `Registrado! Vamos para o próximo: ${updatedActions[0].description}?` 
+           : `Feito! Registrei ${action.type === 'income' ? 'a receita' : 'a despesa'} com sucesso.` }
       ]);
     } catch(err) { alert('Erro ao registrar via chat') }
   };
 
   const handleChatCancel = () => {
-    setPendingAction(null);
+    if (pendingActions.length === 0) return;
+    const action = pendingActions[0];
+    const updatedActions = pendingActions.slice(1);
+    setPendingActions(updatedActions);
     setChatInput('');
     setChatMessages(prev => [
        ...prev, 
-       { id: crypto.randomUUID(), sender: 'user', text: 'Não' }, // Visual feedback
-       { id: crypto.randomUUID(), sender: 'bot', text: 'Tudo bem, registro cancelado.' }
+       { id: crypto.randomUUID(), sender: 'user', text: 'Não' }, 
+       { id: crypto.randomUUID(), sender: 'bot', text: updatedActions.length > 0 
+         ? `Beleza, pulei esse. E quanto a: ${updatedActions[0].description}?` 
+         : 'Tudo bem, registro cancelado.' }
     ]);
   };
 
   const chatSuggestionClick = (txt) => {
-     if(pendingAction) return;
+     if(pendingActions.length > 0) return;
      setChatInput(txt);
   };
 
@@ -1456,20 +1535,20 @@ function App() {
                   </div>
                   
                   {/* Render Confirmation Card if payload exists on this bot msg and it is the pending action match */}
-                    {(msg.sender === 'bot' && pendingAction && chatMessages[chatMessages.length - 1].id === msg.id && msg.text.includes('Deseja registrar')) ? (
+                    {(msg.sender === 'bot' && pendingActions.length > 0 && chatMessages[chatMessages.length - 1].id === msg.id && (msg.text.includes('Deseja registrar') || msg.text.includes('Vamos para o próximo') || msg.text.includes('Entendi a correção'))) ? (
                       <div className="chat-action-card">
                         <div className="action-title">Resumo Extraído</div>
                         <div className="action-detail">
-                            <span>Tipo:</span> <span className="action-val" style={{color: pendingAction.type === 'expense' ? 'var(--danger-color)' : 'var(--success-color)'}}>{pendingAction.type === 'income' ? 'Receita' : 'Despesa'}</span>
+                            <span>Tipo:</span> <span className="action-val" style={{color: pendingActions[0].type === 'expense' ? 'var(--danger-color)' : 'var(--success-color)'}}>{pendingActions[0].type === 'income' ? 'Receita' : 'Despesa'}</span>
                         </div>
                         <div className="action-detail">
-                            <span>Valor:</span> <span className="action-val">R$ {formatMoney(pendingAction.amount)}</span>
+                            <span>Valor:</span> <span className="action-val">R$ {formatMoney(pendingActions[0].amount)}</span>
                         </div>
                         <div className="action-detail">
-                            <span>Info:</span> <span className="action-val">{pendingAction.description}</span>
+                            <span>Info:</span> <span className="action-val">{pendingActions[0].description}</span>
                         </div>
                         <div className="action-detail">
-                            <span>Categoria:</span> <span className="action-val">{pendingAction.category}</span>
+                            <span>Categoria:</span> <span className="action-val">{pendingActions[0].category}</span>
                         </div>
                         <div className="action-buttons">
                             <button className="btn-confirm" onClick={handleChatConfirm}>Confirmar</button>
@@ -1491,7 +1570,7 @@ function App() {
                 <input 
                   type="text" 
                   className="chat-input" 
-                  placeholder={pendingAction ? "Sim ou Não..." : "Ex: 120 da academia"}
+                  placeholder={pendingActions.length > 0 ? "Sim ou Não..." : "Ex: 120 da academia"}
                   value={chatInput}
                   onChange={e => setChatInput(e.target.value)}
                 />
