@@ -155,6 +155,23 @@ function App() {
     return () => unsubscribe();
   }, []);
 
+  // Proactive alert for forecast when chat opens
+  useEffect(() => {
+    if (chatOpen && transactions.length > 0) {
+      const forecast = calculateForecast();
+      if (forecast.isHigh) {
+        setTimeout(() => {
+          const alertMsg = `Olá! Notei que seu ritmo de gastos este mês está **${forecast.variationPct.toFixed(0)}% acima** da sua média. Sua previsão de fechamento é de **R$ ${formatMoney(forecast.forecastAmount)}**. Quer ver onde pode economizar?`;
+          setMessages(prev => {
+             const last = prev[prev.length - 1];
+             if (last && last.text.includes('ritmo de gastos')) return prev;
+             return [...prev, { text: alertMsg, sender: 'bot' }];
+          });
+        }, 1000);
+      }
+    }
+  }, [chatOpen, transactions]);
+
   // Fetch user data when currentUser changes
   useEffect(() => {
     const fetchData = async () => {
@@ -475,6 +492,48 @@ function App() {
     };
   };
 
+  const calculateForecast = () => {
+    const today = new Date();
+    const currentMonth = today.getMonth() + 1;
+    const currentYear = today.getFullYear();
+    
+    // Gasto atual do mês
+    const currentMonthSpent = transactions
+      .filter(t => t.type === 'expense' && new Date(t.date).getMonth() + 1 === currentMonth && new Date(t.date).getFullYear() === currentYear)
+      .reduce((acc, curr) => acc + curr.amount, 0);
+
+    // Média dos últimos 3 meses fechados
+    const threeMonthsAgo = new Date();
+    threeMonthsAgo.setMonth(today.getMonth() - 3);
+    
+    const pastTransactions = transactions.filter(t => {
+      const d = new Date(t.date);
+      // Pega meses anteriores ao atual, nos últimos 3 meses
+      return t.type === 'expense' && d < new Date(currentYear, currentMonth - 1, 1) && d >= threeMonthsAgo;
+    });
+
+    const totalPastDays = 90; // Simplificado para 3 meses
+    const totalPastSpent = pastTransactions.reduce((acc, curr) => acc + curr.amount, 0);
+    const dailyAverage = totalPastSpent / totalPastDays;
+    const monthlyAverage = dailyAverage * 30;
+
+    // Projeção
+    const lastDayOfMonth = new Date(currentYear, currentMonth, 0).getDate();
+    const currentDay = today.getDate();
+    const daysRemaining = lastDayOfMonth - currentDay;
+    
+    const forecastAmount = currentMonthSpent + (dailyAverage * daysRemaining);
+    const variationPct = monthlyAverage > 0 ? ((forecastAmount - monthlyAverage) / monthlyAverage) * 100 : 0;
+
+    return {
+      currentMonthSpent,
+      monthlyAverage,
+      forecastAmount,
+      variationPct,
+      isHigh: variationPct > 15
+    };
+  };
+
   const handleBudgetChange = (catName) => {
     const currentLimit = budgets[catName] || 0;
     setActiveBudgetCat(catName);
@@ -567,7 +626,21 @@ function App() {
        const top = categoryStats[0];
        return { type: 'answer', text: `Seu maior gasto este mês é com ${top.name}, totalizando R$ ${formatMoney(top.total)}.` };
     }
-    if (/(resumo|balanco|geral)/.test(normalized)) {
+    // Intent: ASK_FORECAST
+    if (/(quanto vou gastar|previsao|projeção|predição)/.test(normalized)) {
+      const forecast = calculateForecast();
+      let response = `Analisei seu histórico e aqui está a projeção para este mês: \n\n`;
+      response += `📌 Gasto até agora: R$ ${formatMoney(forecast.currentMonthSpent)}\n`;
+      response += `🔮 Previsão final: R$ ${formatMoney(forecast.forecastAmount)}\n`;
+      
+      if (forecast.isHigh) {
+        response += `⚠️ Atenção: Sua projeção está **${forecast.variationPct.toFixed(0)}% acima** da sua média histórica (R$ ${formatMoney(forecast.monthlyAverage)}). Sugiro revisar seus gastos variáveis.`;
+      } else {
+        response += `✅ Tudo sob controle! Sua projeção está dentro da sua média histórica.`;
+      }
+      return { type: 'answer', text: response };
+    }
+    if (/(resumo|balanco|geral|estatistica|como estou)/.test(normalized)) {
        const percent = totalIncome > 0 ? ((balance / totalIncome) * 100).toFixed(0) : '0';
        return { type: 'answer', text: `Resumo do mês: Receitas R$ ${formatMoney(totalIncome)}, Despesas R$ ${formatMoney(totalExpense)}. Seu saldo está em R$ ${formatMoney(balance)} (${percent}% do total).` };
     }
@@ -1151,6 +1224,23 @@ function App() {
                     </div>
                   </div>
                 </div>
+
+              {/* FORECAST CARD */}
+              <div className={`card grid-card forecast-card ${calculateForecast().isHigh ? 'alert' : ''}`}>
+                <div className="balance-label">Previsão Mensal {calculateForecast().isHigh ? '⚠️' : '🔮'}</div>
+                <div className="balance-value">R$ {formatMoney(calculateForecast().forecastAmount)}</div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+                  <div className="mini-cards-container" style={{ flex: 1 }}>
+                    <div className="mini-card" style={{ backgroundColor: 'rgba(255,255,255,0.03)' }}>
+                      <span className="mini-label">Média Histórica</span>
+                      <span className="mini-value" style={{ color: 'var(--text-secondary)', fontSize: 11 }}>R$ {formatMoney(calculateForecast().monthlyAverage)}</span>
+                    </div>
+                  </div>
+                  <div className={`forecast-badge ${calculateForecast().isHigh ? 'danger' : 'success'}`}>
+                    {calculateForecast().variationPct > 0 ? '+' : ''}{calculateForecast().variationPct.toFixed(0)}%
+                  </div>
+                </div>
+              </div>
 
                 <div className="card grid-card">
                   <div className="card-title">Despesas por Categoria (Top 3)</div>
