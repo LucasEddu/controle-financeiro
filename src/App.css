@@ -858,6 +858,14 @@ h1, h2, h3, h4 { font-weight: 500; }
   box-shadow: 0 6px 20px rgba(216, 90, 48, 0.5);
 }
 
+.fab-icon-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border-radius: 50%;
+  padding: 8px; /* Espaço para a logo não tocar a borda orange */
+}
+
 .chat-fab.has-unread {
   animation: pulse-ring 2s infinite;
 }
@@ -947,6 +955,13 @@ h1, h2, h3, h4 { font-weight: 500; }
   align-items: center;
   justify-content: center;
   font-size: 14px;
+  overflow: hidden;
+}
+
+.bot-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .bot-info {

@@ -1429,18 +1429,19 @@ function App() {
         )}
       </div>
 
-      {/* CHATBOT FLOATING UI */}
       <button className={`chat-fab ${unreadCount > 0 ? 'has-unread' : ''}`} onClick={() => setChatOpen(!chatOpen)}>
-         ⚡
+         <img src="/karonte-favicon-light.svg" alt="Karonte" className="fab-icon-img" />
          {unreadCount > 0 ? <span className="fab-badge">{unreadCount}</span> : null}
       </button>
 
       <aside className={`chatbot-float-window ${chatOpen ? 'open' : ''}`}>
           <div className="chat-header">
             <div style={{display:'flex', alignItems:'center', gap: 10}}>
-              <div className="bot-avatar">⚡</div>
+              <div className="bot-avatar">
+                <img src="/karonte-favicon-light.svg" alt="K" />
+              </div>
               <div className="bot-info">
-                  <span className="bot-name">Assistente Karonte</span>
+                  <span className="bot-name">Karonte</span>
                   <span className="bot-status">Online</span>
               </div>
             </div>
