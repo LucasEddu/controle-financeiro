@@ -134,6 +134,8 @@ function App() {
   });
   const [isDraggingFab, setIsDraggingFab] = useState(false);
   const fabOffsetRef = useRef({ x: 0, y: 0 });
+  const fabButtonRef = useRef(null);
+  const chatWindowRef = useRef(null);
 
   // --------- STATE: PROJECTS / TABS ---------
   const [projects, setProjects] = useState([]);
@@ -778,6 +780,24 @@ function App() {
       window.removeEventListener('mouseup', handleUp);
     };
   }, [isDraggingFab]);
+
+  // Close chat when clicking outside the window (with animation via CSS)
+  useEffect(() => {
+    if (!chatOpen) return;
+
+    const handleClickOutside = (e) => {
+      if (isDraggingFab) return;
+      const chatEl = chatWindowRef.current;
+      const fabEl = fabButtonRef.current;
+      if (!chatEl) return;
+      if (chatEl.contains(e.target)) return;
+      if (fabEl && fabEl.contains(e.target)) return;
+      setChatOpen(false);
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [chatOpen, isDraggingFab]);
 
   const processChatMessage = (text) => {
     // 1. Normalização profunda
@@ -1971,6 +1991,7 @@ function App() {
           className={`chat-fab ${unreadCount > 0 ? 'has-unread' : ''}`}
           onClick={() => { if (!isDraggingFab) setChatOpen(true); }}
           onMouseDown={handleFabMouseDown}
+          ref={fabButtonRef}
           style={{ left: `${fabPosition.x}px`, top: `${fabPosition.y}px` }}
         >
           <img src="/karonte-favicon-light.svg" alt="Karonte" className="fab-icon-img" />
@@ -1980,6 +2001,7 @@ function App() {
 
       <aside
         className={`chatbot-float-window ${chatOpen ? 'open' : ''}`}
+        ref={chatWindowRef}
         style={chatWindowStyle}
       >
           <div className="chat-header">
