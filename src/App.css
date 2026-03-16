@@ -298,9 +298,14 @@ h1, h2, h3, h4 { font-weight: 500; }
 
 .transaction-form {
   display: grid;
-  grid-template-columns: 2fr 1fr 1fr 1fr auto;
-  gap: 10px;
+  grid-template-columns: 2fr 1fr 1fr 1.5fr auto;
+  gap: 12px;
   align-items: flex-end;
+  background: var(--bg-secondary);
+  padding: 20px;
+  border-radius: 14px;
+  border: 0.5px solid var(--border-color);
+  margin-bottom: 20px;
 }
 
 /* Linha do 'Repetir mensalmente' — ocupa todas as colunas */
@@ -913,8 +918,6 @@ h1, h2, h3, h4 { font-weight: 500; }
 /* Floating Window */
 .chatbot-float-window {
   position: fixed;
-  bottom: 100px;
-  right: 30px;
   width: 350px;
   height: 520px;
   max-height: calc(100vh - 130px);
@@ -926,8 +929,8 @@ h1, h2, h3, h4 { font-weight: 500; }
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
   z-index: 1000;
   overflow: hidden;
-  transition: all 0.3s ease;
-  transform: translateY(20px) scale(0.95);
+  transition: opacity 0.22s ease-out, transform 0.22s ease-out, box-shadow 0.22s ease-out;
+  transform: translateY(14px) scale(0.9);
   opacity: 0;
   pointer-events: none;
 }
@@ -936,6 +939,25 @@ h1, h2, h3, h4 { font-weight: 500; }
   transform: translateY(0) scale(1);
   opacity: 1;
   pointer-events: all;
+  animation: chat-pop 0.24s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+}
+
+@keyframes chat-pop {
+  0% {
+    transform: translateY(18px) scale(0.8);
+    opacity: 0;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+  }
+  60% {
+    transform: translateY(-4px) scale(1.02);
+    opacity: 1;
+    box-shadow: 0 18px 40px rgba(0, 0, 0, 0.5);
+  }
+  100% {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+  }
 }
 
 .chat-close-btn {
@@ -1109,12 +1131,32 @@ h1, h2, h3, h4 { font-weight: 500; }
   color: var(--text-tertiary);
 }
 
-.modal-footer {
-  padding: 20px 24px;
-  background-color: rgba(255, 255, 255, 0.02);
+
+.modal-content {
+  background-color: var(--surface-color);
+  border: 1px solid var(--border-color);
+  border-radius: 20px;
+  width: 90%;
+  max-width: 400px;
+  padding: 30px;
+  overflow: hidden;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+  animation: slideUpModal 0.4s cubic-bezier(0.165, 0.84, 0.44, 1);
+  position: relative;
+}
+
+.modal-content h2 {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+}
+
+.modal-actions {
   display: flex;
-  gap: 12px;
   justify-content: flex-end;
+  gap: 12px;
+  margin-top: 24px;
 }
 
 .btn-secondary {
@@ -1482,4 +1524,21 @@ h1, h2, h3, h4 { font-weight: 500; }
 .budget-main-input::-webkit-inner-spin-button {
   appearance: none;
   margin: 0;
+}
+
+.project-tabs {
+  display: flex;
+  gap: 10px;
+  padding: 10px 20px;
+  background-color: var(--bg-secondary);
+  border: 0.5px solid var(--border-color);
+  border-radius: 11px;
+  margin-bottom: 15px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.project-tabs::-webkit-scrollbar {
+  display: none;
 }

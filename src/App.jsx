@@ -13,6 +13,7 @@ import { addTransaction, getUserTransactions, deleteTransaction } from './servic
 import { getUserBudgets, saveUserBudgets } from './services/budgetService';
 import { getUserCategories, saveUserCategories } from './services/categoriesService';
 import { getCachedInsight, saveInsightToCache } from './services/insightService';
+import { getUserProjects, createProject, deleteProject } from './services/projectService';
 
 class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -115,6 +116,33 @@ function App() {
   const [isRecording, setIsRecording] = useState(false);
   const recognitionRef = useRef(null);
 
+  // --------- STATE: DRAGGABLE CHAT FAB ---------
+  const [fabPosition, setFabPosition] = useState(() => {
+    if (typeof window === 'undefined') return { x: 0, y: 0 };
+    try {
+      const stored = localStorage.getItem('karonte_fab_pos');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (typeof parsed.x === 'number' && typeof parsed.y === 'number') return parsed;
+      }
+    } catch {
+      // ignore parse errors
+    }
+    const defaultX = window.innerWidth - 30 - 56; // right: 30px, width: 56px
+    const defaultY = window.innerHeight - 30 - 56; // bottom: 30px, height: 56px
+    return { x: defaultX, y: defaultY };
+  });
+  const [isDraggingFab, setIsDraggingFab] = useState(false);
+  const fabOffsetRef = useRef({ x: 0, y: 0 });
+  const fabButtonRef = useRef(null);
+  const chatWindowRef = useRef(null);
+
+  // --------- STATE: PROJECTS / TABS ---------
+  const [projects, setProjects] = useState([]);
+  const [activeProjectId, setActiveProjectId] = useState(null); // null = Geral
+  const [showProjectModal, setShowProjectModal] = useState(false);
+  const [newProjectName, setNewProjectName] = useState('');
+
 
   // --------- EFFECTS ---------
   useEffect(() => {
@@ -205,19 +233,26 @@ function App() {
     }
   }, [currentUser, transactions.length, dataLoading]);
 
-  // Fetch user data when currentUser changes
+  // Fetch user projects
+  useEffect(() => {
+    if (currentUser) {
+      getUserProjects(currentUser.uid).then(setProjects).catch(console.error);
+    }
+  }, [currentUser]);
+
+  // Fetch user data when currentUser or activeProjectId changes
   useEffect(() => {
     const fetchData = async () => {
        if (!currentUser) return;
        setDataLoading(true);
        try {
-         const txs = await getUserTransactions(currentUser.uid);
+         const txs = await getUserTransactions(currentUser.uid, activeProjectId);
          setTransactions(txs);
          
-         const userBudgets = await getUserBudgets(currentUser.uid);
+         const userBudgets = await getUserBudgets(currentUser.uid, activeProjectId);
          setBudgets(userBudgets);
 
-         // Load custom categories
+         // Load custom categories (categories are global, not per project)
          const cats = await getUserCategories(currentUser.uid);
          setCustomCategories(cats);
          
@@ -232,7 +267,7 @@ function App() {
        }
     };
     fetchData();
-  }, [currentUser]);
+  }, [currentUser, activeProjectId]);
 
   // RECURRING TRANSACTIONS EFFECT: Runs once on login to process recurrences
   useEffect(() => {
@@ -406,10 +441,21 @@ function App() {
     };
     
     try {
-      const savedDoc = await addTransaction(newTransaction);
+      const savedDoc = await addTransaction(newTransaction, activeProjectId);
       setTransactions([savedDoc, ...transactions]);
       setDescription(''); setAmount(''); setCategory(''); setIsRecurring(false);
     } catch(err) { alert('Erro ao salvar transação.'); }
+  };
+
+  const handleCreateProject = async () => {
+    if (!newProjectName.trim()) return;
+    try {
+      const proj = await createProject(newProjectName.trim());
+      setProjects(prev => [...prev, proj]);
+      setShowProjectModal(false);
+      setNewProjectName('');
+      setActiveProjectId(proj.id);
+    } catch (err) { alert('Erro ao criar projeto.'); }
   };
 
   const handleDelete = async (id) => {
@@ -588,7 +634,7 @@ function App() {
     else newBudgets[activeBudgetCat] = finalVal;
 
     try {
-       await saveUserBudgets(newBudgets);
+       await saveUserBudgets(newBudgets, activeProjectId);
        setBudgets(newBudgets);
        setBudgetModalOpen(false);
     } catch(err) { alert('Erro ao salvar orçamento.')}
@@ -692,6 +738,66 @@ function App() {
   ]);
   const [chatInput, setChatInput] = useState('');
   const [pendingActions, setPendingActions] = useState([]); // Array para suportar múltiplos lançamentos
+
+  // --------- EFFECTS: DRAGGABLE CHAT FAB ---------
+  useEffect(() => {
+    if (!isDraggingFab) return;
+
+    const handleMove = (e) => {
+      if (typeof window === 'undefined') return;
+      const clientX = e.clientX;
+      const clientY = e.clientY;
+      if (typeof clientX !== 'number' || typeof clientY !== 'number') return;
+
+      const rawX = clientX - fabOffsetRef.current.x;
+      const rawY = clientY - fabOffsetRef.current.y;
+
+      const maxX = window.innerWidth - 56; // 56 = botão
+      const maxY = window.innerHeight - 56;
+
+      const clamped = {
+        x: Math.min(Math.max(10, rawX), maxX - 10),
+        y: Math.min(Math.max(10, rawY), maxY - 10),
+      };
+
+      setFabPosition(clamped);
+      try {
+        localStorage.setItem('karonte_fab_pos', JSON.stringify(clamped));
+      } catch {
+        // ignore storage errors
+      }
+    };
+
+    const handleUp = () => {
+      setIsDraggingFab(false);
+    };
+
+    window.addEventListener('mousemove', handleMove);
+    window.addEventListener('mouseup', handleUp);
+
+    return () => {
+      window.removeEventListener('mousemove', handleMove);
+      window.removeEventListener('mouseup', handleUp);
+    };
+  }, [isDraggingFab]);
+
+  // Close chat when clicking outside the window (with animation via CSS)
+  useEffect(() => {
+    if (!chatOpen) return;
+
+    const handleClickOutside = (e) => {
+      if (isDraggingFab) return;
+      const chatEl = chatWindowRef.current;
+      const fabEl = fabButtonRef.current;
+      if (!chatEl) return;
+      if (chatEl.contains(e.target)) return;
+      if (fabEl && fabEl.contains(e.target)) return;
+      setChatOpen(false);
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [chatOpen, isDraggingFab]);
 
   const processChatMessage = (text) => {
     // 1. Normalização profunda
@@ -1073,6 +1179,46 @@ function App() {
      setChatInput(txt);
   };
 
+  const handleFabMouseDown = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingFab(true);
+
+    const rect = e.currentTarget.getBoundingClientRect();
+    fabOffsetRef.current = {
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top,
+    };
+  };
+
+  const chatWindowStyle = useMemo(() => {
+    if (typeof window === 'undefined') return {};
+
+    const width = 350;
+    const height = 520;
+
+    const fabCenterX = fabPosition.x + 28;
+    const fabCenterY = fabPosition.y + 28;
+
+    let x = fabCenterX - width / 2;
+    let y = fabCenterY - height - 16;
+
+    const maxX = window.innerWidth - width - 10;
+    const maxY = window.innerHeight - height - 10;
+
+    if (x < 10) x = 10;
+    if (x > maxX) x = maxX;
+    if (y < 10) y = 10;
+    if (y > maxY) y = maxY;
+
+    return {
+      left: `${x}px`,
+      top: `${y}px`,
+      transformOrigin: 'center bottom'
+    };
+  }, [fabPosition]);
+
+
 
   // ================= VIEWS =================
 
@@ -1392,6 +1538,47 @@ function App() {
             <button onClick={handleLogout} className="logout-btn">Sair</button>
           </div>
         </header>
+
+        {/* PROJECT TABS */}
+        <div className="project-tabs">
+           <button 
+             onClick={() => setActiveProjectId(null)}
+             style={{ 
+               padding: '6px 14px', borderRadius: '20px', border: 'none', 
+               background: activeProjectId === null ? 'var(--primary-color)' : 'transparent', 
+               color: activeProjectId === null ? '#fff' : 'var(--text-secondary)', 
+               cursor: 'pointer', fontWeight: activeProjectId === null ? '600' : 'normal',
+               whiteSpace: 'nowrap', transition: 'all 0.2s'
+             }}
+           >
+             Geral
+           </button>
+           {projects.map(p => (
+             <button 
+               key={p.id}
+               onClick={() => setActiveProjectId(p.id)}
+               style={{ 
+                 padding: '6px 14px', borderRadius: '20px', border: 'none', 
+                 background: activeProjectId === p.id ? 'var(--primary-color)' : 'transparent', 
+                 color: activeProjectId === p.id ? '#fff' : 'var(--text-secondary)', 
+                 cursor: 'pointer', fontWeight: activeProjectId === p.id ? '600' : 'normal',
+                 whiteSpace: 'nowrap', transition: 'all 0.2s'
+               }}
+             >
+               {p.name}
+             </button>
+           ))}
+           <button 
+             onClick={() => setShowProjectModal(true)} 
+             style={{ 
+               padding: '6px 14px', borderRadius: '20px', border: '1px dashed var(--border-color)', 
+               background: 'transparent', color: 'var(--text-secondary)', cursor: 'pointer', 
+               whiteSpace: 'nowrap', transition: 'all 0.2s'
+             }}
+           >
+             + Novo Projeto
+           </button>
+        </div>
 
         {currentView === 'dashboard' && (
           <div className="dashboard-layout">
@@ -1799,12 +1986,24 @@ function App() {
         )}
       </div>
 
-      <button className={`chat-fab ${unreadCount > 0 ? 'has-unread' : ''}`} onClick={() => setChatOpen(!chatOpen)}>
-         <img src="/karonte-favicon-light.svg" alt="Karonte" className="fab-icon-img" />
-         {unreadCount > 0 ? <span className="fab-badge">{unreadCount}</span> : null}
-      </button>
+      {!chatOpen && (
+        <button
+          className={`chat-fab ${unreadCount > 0 ? 'has-unread' : ''}`}
+          onClick={() => { if (!isDraggingFab) setChatOpen(true); }}
+          onMouseDown={handleFabMouseDown}
+          ref={fabButtonRef}
+          style={{ left: `${fabPosition.x}px`, top: `${fabPosition.y}px` }}
+        >
+          <img src="/karonte-favicon-light.svg" alt="Karonte" className="fab-icon-img" />
+          {unreadCount > 0 ? <span className="fab-badge">{unreadCount}</span> : null}
+        </button>
+      )}
 
-      <aside className={`chatbot-float-window ${chatOpen ? 'open' : ''}`}>
+      <aside
+        className={`chatbot-float-window ${chatOpen ? 'open' : ''}`}
+        ref={chatWindowRef}
+        style={chatWindowStyle}
+      >
           <div className="chat-header">
             <div style={{display:'flex', alignItems:'center', gap: 10}}>
               <div className="bot-avatar">
@@ -1909,6 +2108,36 @@ function App() {
                  <button className="btn-confirm" onClick={handleConfirmBudget}>Salvar Limite</button>
               </div>
            </div>
+        </div>
+      )}
+      {/* NEW PROJECT MODAL */}
+      {showProjectModal && (
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <div className="modal-header">
+              <h2>Novo Projeto Orçamentário</h2>
+              <button className="close-btn" onClick={() => setShowProjectModal(false)}>✕</button>
+            </div>
+            <p className="modal-subtitle">
+              Crie projetos para gerenciar orçamentos separados (ex: "Construção da Casa", "Casamento 2025").
+            </p>
+            
+            <div className="form-group">
+              <label>Nome do Projeto</label>
+              <input 
+                 type="text" 
+                 value={newProjectName} 
+                 onChange={e => setNewProjectName(e.target.value)} 
+                 placeholder="Digite o nome..." 
+                 autoFocus
+              />
+            </div>
+            
+            <div className="modal-actions">
+              <button className="btn-secondary" onClick={() => setShowProjectModal(false)}>Cancelar</button>
+              <button className="submit-btn" onClick={handleCreateProject}>Criar Projeto</button>
+            </div>
+          </div>
         </div>
       )}
     </div>
