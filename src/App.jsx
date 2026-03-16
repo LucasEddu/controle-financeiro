@@ -1419,12 +1419,7 @@ function App() {
         </header>
 
         {/* PROJECT TABS */}
-        <div className="project-tabs" style={{ 
-          display: 'flex', gap: '10px', padding: '10px 20px', 
-          backgroundColor: 'var(--bg-secondary)', 
-          borderBottom: '1px solid var(--border-color)', 
-          overflowX: 'auto', WebkitOverflowScrolling: 'touch' 
-        }}>
+        <div className="project-tabs">
            <button 
              onClick={() => setActiveProjectId(null)}
              style={{ 
@@ -1985,12 +1980,12 @@ function App() {
       {/* NEW PROJECT MODAL */}
       {showProjectModal && (
         <div className="modal-overlay">
-          <div className="modal-content" style={{maxWidth: 400}}>
+          <div className="modal-content">
             <div className="modal-header">
               <h2>Novo Projeto Orçamentário</h2>
               <button className="close-btn" onClick={() => setShowProjectModal(false)}>✕</button>
             </div>
-            <p style={{fontSize: 13, color: 'var(--text-tertiary)', marginBottom: 20}}>
+            <p className="modal-subtitle">
               Crie projetos para gerenciar orçamentos separados (ex: "Construção da Casa", "Casamento 2025").
             </p>
             
@@ -2005,8 +2000,8 @@ function App() {
               />
             </div>
             
-            <div className="modal-actions" style={{display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 20}}>
-              <button className="text-btn" onClick={() => setShowProjectModal(false)}>Cancelar</button>
+            <div className="modal-actions">
+              <button className="btn-secondary" onClick={() => setShowProjectModal(false)}>Cancelar</button>
               <button className="submit-btn" onClick={handleCreateProject}>Criar Projeto</button>
             </div>
           </div>

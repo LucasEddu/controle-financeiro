@@ -12,6 +12,7 @@
   --text-secondary: rgba(253, 232, 224, 0.85);
   --text-tertiary: rgba(253, 232, 224, 0.70);
   --text-highlight: #D85A30;
+  --bg-secondary: #1e1212;
   
   --input-bg: #3a1e1e;
   --input-focus-bg: #4a2424;
@@ -52,14 +53,15 @@
   --border-color: #f5c4b3;
   --border-light: rgba(245, 196, 179, 0.4);
   --border-medium: rgba(245, 196, 179, 0.8);
-  --text-primary: #4A1B0C;
-  --text-secondary: rgba(216, 90, 48, 0.85);
-  --text-tertiary: rgba(216, 90, 48, 0.70);
+  --text-primary: #311208;
+  --text-secondary: #8c3b1f;
+  --text-tertiary: #a6583d;
   --text-highlight: #D85A30;
+  --bg-secondary: #fcece8;
 
   --input-bg: #ffffff;
   --input-focus-bg: #fffcfb;
-  --input-border: #f5c4b3;
+  --input-border: #e09b85;
   
   --primary-color: #D85A30;
   --primary-bg: rgba(216, 90, 48, 0.15); 
