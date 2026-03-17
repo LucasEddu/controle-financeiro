@@ -5,10 +5,10 @@ import {
   deleteDoc, 
   doc, 
   updateDoc,
-  getDoc,
   query, 
   where, 
-  getDocs 
+  getDocs,
+  arrayUnion 
 } from 'firebase/firestore';
 
 const COLLECTION_NAME = 'projects';
@@ -74,13 +74,13 @@ export const deleteProject = async (id) => {
 export const addCollaborator = async (projectId, uid, role) => {
   try {
     const ref = doc(db, COLLECTION_NAME, projectId);
-    const snap = await getDoc(ref);
-    if (!snap.exists()) throw new Error("Project not found");
-    const data = snap.data();
-    const prev = data.collaborators || [];
-    const collaborators = prev.includes(uid) ? prev : [...prev, uid];
-    const collaboratorRoles = { ...(data.collaboratorRoles || {}), [uid]: role };
-    await updateDoc(ref, { collaborators, collaboratorRoles, updatedAt: new Date().toISOString() });
+    // Important: não fazemos getDoc aqui, porque o convidado ainda não tem read no projeto.
+    // updateDoc com arrayUnion permite o "self-join" permitido pelas rules.
+    await updateDoc(ref, {
+      collaborators: arrayUnion(uid),
+      [`collaboratorRoles.${uid}`]: role,
+      updatedAt: new Date().toISOString()
+    });
   } catch (error) {
     console.error("Error adding collaborator:", error);
     throw error;
