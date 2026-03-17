@@ -168,6 +168,8 @@ function App() {
   const [paymentMode, setPaymentMode] = useState('valor'); // 'valor' | 'parcelas'
   const [paymentParcelasInput, setPaymentParcelasInput] = useState(''); // número de parcelas a abater
   const [paymentSaving, setPaymentSaving] = useState(false);
+  const [tasksTab, setTasksTab] = useState('pendentes'); // 'pendentes' | 'concluidas'
+  const [tasksSort, setTasksSort] = useState('updatedAt'); // 'updatedAt' | 'createdAt' | 'title' | 'metaValue'
 
   // Notifications & invites
   const [notifications, setNotifications] = useState([]);
@@ -297,6 +299,57 @@ function App() {
       .catch(console.error)
       .finally(() => setTasksLoading(false));
   }, [currentUser, activeProjectId]);
+
+  // Keep default tab consistent when switching project
+  useEffect(() => {
+    setTasksTab('pendentes');
+  }, [activeProjectId]);
+
+  const sortedAndFilteredTasks = useMemo(() => {
+    const filtered = tasks.filter(t => (tasksTab === 'concluidas' ? !!t.completed : !t.completed));
+
+    const getDateMs = (val) => {
+      if (!val) return 0;
+      const ms = new Date(val).getTime();
+      return Number.isFinite(ms) ? ms : 0;
+    };
+
+    const withIndex = filtered.map((t, idx) => ({ t, idx }));
+
+    withIndex.sort((a, b) => {
+      const A = a.t;
+      const B = b.t;
+
+      if (tasksSort === 'title') {
+        const at = (A.title || '').toString().toLowerCase();
+        const bt = (B.title || '').toString().toLowerCase();
+        const cmp = at.localeCompare(bt, 'pt-BR');
+        return cmp !== 0 ? cmp : (a.idx - b.idx);
+      }
+
+      if (tasksSort === 'metaValue') {
+        const av = Number(A.metaValue) || 0;
+        const bv = Number(B.metaValue) || 0;
+        if (bv !== av) return bv - av; // maior valor primeiro
+        return a.idx - b.idx;
+      }
+
+      if (tasksSort === 'createdAt') {
+        const ad = getDateMs(A.createdAt);
+        const bd = getDateMs(B.createdAt);
+        if (bd !== ad) return bd - ad; // mais recente primeiro
+        return a.idx - b.idx;
+      }
+
+      // default: updatedAt
+      const ad = getDateMs(A.updatedAt || A.createdAt);
+      const bd = getDateMs(B.updatedAt || B.createdAt);
+      if (bd !== ad) return bd - ad; // mais recente primeiro
+      return a.idx - b.idx;
+    });
+
+    return withIndex.map(x => x.t);
+  }, [tasks, tasksTab, tasksSort]);
 
   // Fetch user data when currentUser or activeProjectId or projects changes
   useEffect(() => {
@@ -2572,22 +2625,56 @@ function App() {
           <main className="main-content">
             <div className="card list-section">
               <div className="list-header">
-                <h2>Tarefas pendentes</h2>
+                <h2>Tarefas</h2>
                 {activeProjectId && canAddToProject ? (
                   <button type="button" className="submit-btn" onClick={() => openTaskModal()} style={{ padding: '8px 16px', fontSize: 13 }}>
                     + Nova tarefa
                   </button>
                 ) : null}
               </div>
+              {activeProjectId ? (
+                <div className="tasks-toolbar">
+                  <div className="tasks-tabs">
+                    <button
+                      type="button"
+                      className={`tasks-tab ${tasksTab === 'pendentes' ? 'active' : ''}`}
+                      onClick={() => setTasksTab('pendentes')}
+                    >
+                      Pendentes ({tasks.filter(t => !t.completed).length})
+                    </button>
+                    <button
+                      type="button"
+                      className={`tasks-tab ${tasksTab === 'concluidas' ? 'active' : ''}`}
+                      onClick={() => setTasksTab('concluidas')}
+                    >
+                      Concluídas ({tasks.filter(t => !!t.completed).length})
+                    </button>
+                  </div>
+
+                  <div className="tasks-sort">
+                    <label className="tasks-sort-label">Ordenar por</label>
+                    <select value={tasksSort} onChange={e => setTasksSort(e.target.value)} className="tasks-sort-select">
+                      <option value="updatedAt">Última alteração</option>
+                      <option value="createdAt">Data de inclusão</option>
+                      <option value="title">Nome (A–Z)</option>
+                      <option value="metaValue">Valor total (maior)</option>
+                    </select>
+                  </div>
+                </div>
+              ) : null}
               {!activeProjectId ? (
                 <p className="tasks-empty-hint">Selecione um projeto nas abas acima para gerenciar as tarefas desse projeto.</p>
               ) : tasksLoading ? (
                 <p className="tasks-empty-hint">Carregando tarefas...</p>
-              ) : tasks.length === 0 ? (
-                <p className="tasks-empty-hint">Nenhuma tarefa ainda. Clique em &quot;+ Nova tarefa&quot; para adicionar.</p>
+              ) : sortedAndFilteredTasks.length === 0 ? (
+                <p className="tasks-empty-hint">
+                  {tasksTab === 'concluidas'
+                    ? 'Nenhuma tarefa concluída ainda.'
+                    : 'Nenhuma tarefa pendente ainda. Clique em "+ Nova tarefa" para adicionar.'}
+                </p>
               ) : (
                 <ul className="tasks-list">
-                  {tasks.map(task => {
+                  {sortedAndFilteredTasks.map(task => {
                     const meta = Number(task.metaValue) || 0;
                     const paid = Number(task.paidAmount) || 0;
                     const isDespesa = task.type === 'despesa';
