@@ -1707,6 +1707,14 @@ h1, h2, h3, h4 { font-weight: 500; }
   color: var(--primary-color);
 }
 
+.task-meta-parcelas-status {
+  color: var(--text-secondary);
+}
+
+.task-item.task-despesa .task-meta-parcelas-status {
+  color: rgba(248, 113, 113, 0.85);
+}
+
 .task-progress-wrap {
   margin-top: 6px;
 }

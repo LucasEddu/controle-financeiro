@@ -159,10 +159,14 @@ function App() {
   const [taskTypeInput, setTaskTypeInput] = useState('tarefa'); // 'tarefa' | 'despesa'
   const [taskMetaValueInput, setTaskMetaValueInput] = useState(''); // valor meta (string para input)
   const [taskParcelasInput, setTaskParcelasInput] = useState(''); // número de parcelas
+  const [taskParcelaValueInput, setTaskParcelaValueInput] = useState(''); // valor da parcela (string)
+  const [taskParcelasPaidInput, setTaskParcelasPaidInput] = useState(''); // parcelas já pagas (string numérica)
   const [taskSaving, setTaskSaving] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [taskToPay, setTaskToPay] = useState(null);
   const [paymentAmountInput, setPaymentAmountInput] = useState('');
+  const [paymentMode, setPaymentMode] = useState('valor'); // 'valor' | 'parcelas'
+  const [paymentParcelasInput, setPaymentParcelasInput] = useState(''); // número de parcelas a abater
   const [paymentSaving, setPaymentSaving] = useState(false);
 
   // Notifications & invites
@@ -544,11 +548,19 @@ function App() {
   };
 
   const openTaskModal = (task = null) => {
+    const meta = Number(task?.metaValue) || 0;
+    const parcelas = Number(task?.parcelas) || 0;
+    const paid = Number(task?.paidAmount) || 0;
+    const parcelaValue = (meta > 0 && parcelas > 0) ? (meta / parcelas) : 0;
+    const parcelasPagas = (parcelaValue > 0) ? Math.min(parcelas, Math.floor((paid + 1e-9) / parcelaValue)) : 0;
+
     setTaskEditId(task ? task.id : null);
     setTaskTitleInput(task ? task.title : '');
     setTaskTypeInput(task?.type || 'tarefa');
-    setTaskMetaValueInput(task?.metaValue != null && task.metaValue > 0 ? formatMoney(task.metaValue) : '');
-    setTaskParcelasInput(task?.parcelas ? String(task.parcelas) : '');
+    setTaskMetaValueInput(task?.metaValue != null && meta > 0 ? formatMoney(meta) : '');
+    setTaskParcelasInput(parcelas > 0 ? String(parcelas) : '');
+    setTaskParcelaValueInput(parcelaValue > 0 ? formatMoney(parcelaValue) : '');
+    setTaskParcelasPaidInput(parcelasPagas > 0 ? String(parcelasPagas) : '');
     setShowTaskModal(true);
   };
 
@@ -559,16 +571,32 @@ function App() {
     setTaskTypeInput('tarefa');
     setTaskMetaValueInput('');
     setTaskParcelasInput('');
+    setTaskParcelaValueInput('');
+    setTaskParcelasPaidInput('');
   };
 
   const openPaymentModal = (task) => {
     setTaskToPay(task);
     setPaymentAmountInput('');
+    setPaymentParcelasInput('');
+    setPaymentMode('valor');
     setShowPaymentModal(true);
   };
 
   const handleAddPayment = async () => {
-    const amount = parseMoneyInput(paymentAmountInput);
+    if (!taskToPay) return;
+
+    const meta = Number(taskToPay.metaValue) || 0;
+    const parcelas = Number(taskToPay.parcelas) || 0;
+    const parcelaValue = (meta > 0 && parcelas > 0) ? (meta / parcelas) : 0;
+
+    let amount = 0;
+    if (paymentMode === 'parcelas') {
+      const n = parseInt(paymentParcelasInput, 10) || 0;
+      amount = parcelaValue > 0 ? (n * parcelaValue) : 0;
+    } else {
+      amount = parseMoneyInput(paymentAmountInput);
+    }
     if (!taskToPay || amount <= 0) return;
     setPaymentSaving(true);
     try {
@@ -579,6 +607,7 @@ function App() {
       setShowPaymentModal(false);
       setTaskToPay(null);
       setPaymentAmountInput('');
+      setPaymentParcelasInput('');
     } catch (err) {
       console.error('Erro ao registrar pagamento:', err);
       alert('Erro ao registrar pagamento.');
@@ -589,8 +618,18 @@ function App() {
 
   const handleSaveTask = async () => {
     if (!taskTitleInput.trim() || !currentUser || !activeProjectId) return;
-    const metaValue = parseMoneyInput(taskMetaValueInput);
     const parcelas = parseInt(taskParcelasInput, 10) || 0;
+    const metaFromInput = parseMoneyInput(taskMetaValueInput);
+    const parcelaFromInput = parseMoneyInput(taskParcelaValueInput);
+    const metaValue = (metaFromInput > 0)
+      ? metaFromInput
+      : (parcelas > 0 && parcelaFromInput > 0 ? (parcelas * parcelaFromInput) : 0);
+
+    const parcelasPagas = parseInt(taskParcelasPaidInput, 10) || 0;
+    const initialPaidAmount = (parcelas > 0 && parcelaFromInput > 0 && parcelasPagas > 0)
+      ? (Math.min(parcelasPagas, parcelas) * parcelaFromInput)
+      : null;
+
     setTaskSaving(true);
     try {
       if (taskEditId) {
@@ -598,7 +637,8 @@ function App() {
           title: taskTitleInput.trim(),
           type: taskTypeInput,
           metaValue,
-          parcelas
+          parcelas,
+          ...(initialPaidAmount != null ? { paidAmount: initialPaidAmount } : {})
         };
         await updateTask(taskEditId, payload);
         setTasks(prev => prev.map(t => t.id === taskEditId ? { ...t, ...payload } : t));
@@ -608,7 +648,7 @@ function App() {
           type: taskTypeInput,
           metaValue,
           parcelas,
-          paidAmount: 0,
+          paidAmount: initialPaidAmount != null ? initialPaidAmount : 0,
           createdByName: currentUser?.username || currentUser?.displayName || currentUser?.email || currentUser?.uid
         };
         const newTask = await addTask(activeProjectId, payload);
@@ -2551,6 +2591,12 @@ function App() {
                     const meta = Number(task.metaValue) || 0;
                     const paid = Number(task.paidAmount) || 0;
                     const isDespesa = task.type === 'despesa';
+                    const parcelasCount = Number(task.parcelas) || 0;
+                    const parcelaValue = parcelasCount > 0 && meta > 0 ? (meta / parcelasCount) : 0;
+                    const parcelasPagas = parcelaValue > 0
+                      ? Math.min(parcelasCount, Math.floor((paid + 1e-9) / parcelaValue))
+                      : 0;
+                    const parcelasRestantes = parcelasCount > 0 ? Math.max(0, parcelasCount - parcelasPagas) : 0;
                     const progressPct = meta > 0
                       ? (isDespesa ? Math.min(100, (paid / meta) * 100) : (task.completed ? 100 : Math.min(100, (paid / meta) * 100)))
                       : (task.completed ? 100 : 0);
@@ -2567,7 +2613,7 @@ function App() {
                         <div className="task-body">
                           <div className="task-row">
                             <span className="task-title">{task.title}</span>
-                            {task.parcelas > 0 && <span className="task-parcelas">{task.parcelas}x</span>}
+                            {parcelasCount > 0 && <span className="task-parcelas">{parcelasCount}x</span>}
                             <div className="task-actions">
                               {canAddToProject && isDespesa && meta > 0 && (
                                 <button type="button" className="task-btn-pay" onClick={() => openPaymentModal(task)} title="Registrar pagamento">+ Abater</button>
@@ -2582,8 +2628,13 @@ function App() {
                                 {isDespesa && meta > 0 && (
                                   <span className="task-meta-text">R$ {formatMoney(paid)} de R$ {formatMoney(meta)}</span>
                                 )}
-                                {task.parcelas > 0 && meta > 0 && (
-                                  <span className="task-meta-parcela">Valor parcela: R$ {formatMoney(meta / task.parcelas)}</span>
+                                {parcelasCount > 0 && meta > 0 && (
+                                  <span className="task-meta-parcela">Valor parcela: R$ {formatMoney(meta / parcelasCount)}</span>
+                                )}
+                                {isDespesa && parcelasCount > 0 && meta > 0 && (
+                                  <span className="task-meta-parcelas-status">
+                                    Parcelas: {parcelasPagas}/{parcelasCount} pagas • faltam {parcelasRestantes}
+                                  </span>
                                 )}
                                 {task.createdByName ? (
                                   <span className="task-meta-text">por {task.createdByName}</span>
@@ -2861,13 +2912,27 @@ function App() {
             {taskTypeInput === 'despesa' && (
               <>
                 <div className="form-group">
-                  <label>Valor meta (R$)</label>
+                  <label>Valor total (R$)</label>
                   <input
                     type="text"
                     value={taskMetaValueInput}
                     onChange={e => handleTaskMoneyInput(e, setTaskMetaValueInput)}
                     placeholder="0,00"
                   />
+                </div>
+                <div className="form-group">
+                  <label>Valor da parcela (R$) (opcional)</label>
+                  <input
+                    type="text"
+                    value={taskParcelaValueInput}
+                    onChange={e => handleTaskMoneyInput(e, setTaskParcelaValueInput)}
+                    placeholder="0,00"
+                  />
+                  {(parseInt(taskParcelasInput, 10) || 0) > 0 && parseMoneyInput(taskParcelaValueInput) > 0 ? (
+                    <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 4 }}>
+                      Total calculado: R$ {formatMoney((parseInt(taskParcelasInput, 10) || 0) * parseMoneyInput(taskParcelaValueInput))}
+                    </div>
+                  ) : null}
                 </div>
                 <div className="form-group">
                   <label>Número de parcelas (opcional)</label>
@@ -2878,6 +2943,21 @@ function App() {
                     onChange={e => setTaskParcelasInput(e.target.value.replace(/\D/g, '').slice(0, 4))}
                     placeholder="Ex: 12"
                   />
+                </div>
+                <div className="form-group">
+                  <label>Parcelas já pagas (opcional)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={taskParcelasPaidInput}
+                    onChange={e => setTaskParcelasPaidInput(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                    placeholder="Ex: 3"
+                  />
+                  {parseMoneyInput(taskParcelaValueInput) > 0 && (parseInt(taskParcelasPaidInput, 10) || 0) > 0 ? (
+                    <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 4 }}>
+                      Abatimento calculado: R$ {formatMoney(Math.min(parseInt(taskParcelasPaidInput, 10) || 0, parseInt(taskParcelasInput, 10) || 0) * parseMoneyInput(taskParcelaValueInput))}
+                    </div>
+                  ) : null}
                 </div>
               </>
             )}
@@ -2902,26 +2982,65 @@ function App() {
 
       {/* MODAL REGISTRAR PAGAMENTO (abater dívida) */}
       {showPaymentModal && taskToPay && (
-        <div className="modal-overlay" onClick={() => { setShowPaymentModal(false); setTaskToPay(null); setPaymentAmountInput(''); }}>
+        <div className="modal-overlay" onClick={() => { setShowPaymentModal(false); setTaskToPay(null); setPaymentAmountInput(''); setPaymentParcelasInput(''); }}>
           <div className="modal-content" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
               <h2>Registrar pagamento</h2>
-              <button className="close-btn" onClick={() => { setShowPaymentModal(false); setTaskToPay(null); setPaymentAmountInput(''); }}>✕</button>
+              <button className="close-btn" onClick={() => { setShowPaymentModal(false); setTaskToPay(null); setPaymentAmountInput(''); setPaymentParcelasInput(''); }}>✕</button>
             </div>
             <p className="modal-subtitle">Abater valor em &quot;{taskToPay.title}&quot;. Valor pago até agora: R$ {formatMoney(Number(taskToPay.paidAmount) || 0)} de R$ {formatMoney(Number(taskToPay.metaValue) || 0)}.</p>
             <div className="form-group">
-              <label>Valor a abater (R$)</label>
-              <input
-                type="text"
-                value={paymentAmountInput}
-                onChange={e => handleTaskMoneyInput(e, setPaymentAmountInput)}
-                placeholder="0,00"
-                autoFocus
-              />
+              <label>Modo de abatimento</label>
+              <select value={paymentMode} onChange={e => setPaymentMode(e.target.value)}>
+                <option value="valor">Por valor</option>
+                <option value="parcelas">Por parcelas</option>
+              </select>
+            </div>
+            <div className="form-group">
+              {paymentMode === 'parcelas' ? (
+                <>
+                  <label>Parcelas pagas agora</label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={paymentParcelasInput}
+                    onChange={e => setPaymentParcelasInput(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                    placeholder="Ex: 1"
+                    autoFocus
+                  />
+                  {(() => {
+                    const meta = Number(taskToPay.metaValue) || 0;
+                    const parcelas = Number(taskToPay.parcelas) || 0;
+                    const parcelaValue = (meta > 0 && parcelas > 0) ? (meta / parcelas) : 0;
+                    const n = parseInt(paymentParcelasInput, 10) || 0;
+                    return (parcelaValue > 0 && n > 0)
+                      ? <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 4 }}>Valor abatido: R$ {formatMoney(n * parcelaValue)}</div>
+                      : (parcelas <= 0 ? <div style={{ fontSize: 11, color: 'var(--danger-color)', marginTop: 4 }}>Esta despesa não tem parcelas definidas.</div> : null);
+                  })()}
+                </>
+              ) : (
+                <>
+                  <label>Valor a abater (R$)</label>
+                  <input
+                    type="text"
+                    value={paymentAmountInput}
+                    onChange={e => handleTaskMoneyInput(e, setPaymentAmountInput)}
+                    placeholder="0,00"
+                    autoFocus
+                  />
+                </>
+              )}
             </div>
             <div className="modal-actions">
-              <button type="button" className="btn-secondary" onClick={() => { setShowPaymentModal(false); setTaskToPay(null); setPaymentAmountInput(''); }}>Cancelar</button>
-              <button type="button" className="submit-btn" onClick={handleAddPayment} disabled={paymentSaving || parseMoneyInput(paymentAmountInput) <= 0}>{paymentSaving ? '...' : 'Registrar'}</button>
+              <button type="button" className="btn-secondary" onClick={() => { setShowPaymentModal(false); setTaskToPay(null); setPaymentAmountInput(''); setPaymentParcelasInput(''); }}>Cancelar</button>
+              <button
+                type="button"
+                className="submit-btn"
+                onClick={handleAddPayment}
+                disabled={paymentSaving || (paymentMode === 'parcelas' ? (parseInt(paymentParcelasInput, 10) || 0) <= 0 : parseMoneyInput(paymentAmountInput) <= 0)}
+              >
+                {paymentSaving ? '...' : 'Registrar'}
+              </button>
             </div>
           </div>
         </div>
