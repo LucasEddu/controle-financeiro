@@ -64,7 +64,8 @@ export const acceptInvite = async (inviteId) => {
     if (invite.status !== 'pending') throw new Error('Convite já foi processado');
     if (invite.toEmail.toLowerCase() !== (user.email || '').toLowerCase()) throw new Error('Convite não é para este usuário');
 
-    await addCollaborator(invite.projectId, user.uid, invite.role);
+    const displayName = user.displayName || user.email || user.uid;
+    await addCollaborator(invite.projectId, user.uid, invite.role, displayName);
     await updateDoc(ref, { status: 'accepted', toUid: user.uid, respondedAt: new Date().toISOString() });
     return { projectId: invite.projectId };
   } catch (error) {

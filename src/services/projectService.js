@@ -71,14 +71,16 @@ export const deleteProject = async (id) => {
   }
 };
 
-export const addCollaborator = async (projectId, uid, role) => {
+export const addCollaborator = async (projectId, uid, role, displayName = null) => {
   try {
     const ref = doc(db, COLLECTION_NAME, projectId);
     // Important: não fazemos getDoc aqui, porque o convidado ainda não tem read no projeto.
     // updateDoc com arrayUnion permite o "self-join" permitido pelas rules.
+    const safeName = (displayName || '').trim();
     await updateDoc(ref, {
       collaborators: arrayUnion(uid),
       [`collaboratorRoles.${uid}`]: role,
+      ...(safeName ? { [`collaboratorNames.${uid}`]: safeName } : {}),
       updatedAt: new Date().toISOString()
     });
   } catch (error) {

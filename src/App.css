@@ -2025,8 +2025,74 @@ h1, h2, h3, h4 { font-weight: 500; }
 }
 
 .participant-actions select {
+  font-size: 13px;
+}
+
+.participant-role-select {
+  background-color: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  color: var(--text-primary);
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  height: 36px;
+  outline: none;
+  cursor: pointer;
+  transition: all 0.2s;
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background-image: linear-gradient(45deg, transparent 50%, var(--text-secondary) 50%),
+    linear-gradient(135deg, var(--text-secondary) 50%, transparent 50%);
+  background-position: calc(100% - 16px) calc(50% - 2px), calc(100% - 11px) calc(50% - 2px);
+  background-size: 6px 6px, 6px 6px;
+  background-repeat: no-repeat;
+  padding-right: 34px;
+}
+
+.participant-role-select:hover {
+  background-color: rgba(255, 255, 255, 0.12);
+  border-color: var(--text-highlight);
+}
+
+.participant-role-select:focus {
+  border-color: var(--text-highlight);
+  box-shadow: 0 0 0 2px rgba(216, 90, 48, 0.2);
+}
+
+.participant-role-select option {
+  background-color: var(--surface-color);
+  color: var(--text-primary);
+}
+
+.participant-name-edit {
+  margin-top: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.participant-name-input {
+  background-color: var(--input-bg);
+  border: 1px solid var(--input-border);
+  border-radius: 8px;
+  color: var(--text-primary);
+  padding: 8px 12px;
   font-size: 11px;
-  padding: 4px 6px;
+  width: min(340px, 100%);
+}
+
+.participant-name-input:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  background-color: var(--input-focus-bg);
+  box-shadow: 0 0 0 2px rgba(216, 90, 48, 0.18);
+}
+
+.participant-name-hint {
+  font-size: 10px;
+  color: var(--text-tertiary);
 }
 
 .text-btn.danger {

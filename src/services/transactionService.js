@@ -18,9 +18,17 @@ export const addTransaction = async (transactionData, projectId = null) => {
     const user = auth.currentUser;
     if (!user) throw new Error("No authenticated user");
 
+    const createdByName =
+      transactionData?.createdByName ||
+      user.displayName ||
+      user.email ||
+      user.uid;
+
     const payload = {
       ...transactionData,
       userId: user.uid, // Ensure it's tied to current user
+      createdByUid: user.uid,
+      createdByName,
       createdAt: new Date().toISOString()
     };
     

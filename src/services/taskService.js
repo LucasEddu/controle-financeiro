@@ -38,10 +38,17 @@ export const addTask = async (projectId, payload) => {
     const metaValue = (typeof payload === 'object' && payload.metaValue != null) ? Number(payload.metaValue) : 0;
     const parcelas = (typeof payload === 'object' && payload.parcelas != null) ? Number(payload.parcelas) : 0;
     const paidAmount = (typeof payload === 'object' && payload.paidAmount != null) ? Number(payload.paidAmount) : 0;
+    const createdByName =
+      (typeof payload === 'object' && payload.createdByName) ||
+      user.displayName ||
+      user.email ||
+      user.uid;
 
     const ref = await addDoc(collection(db, COLLECTION_NAME), {
       projectId,
       userId: user.uid,
+      createdByUid: user.uid,
+      createdByName,
       title: title.trim(),
       completed: false,
       type,
@@ -54,6 +61,8 @@ export const addTask = async (projectId, payload) => {
       id: ref.id,
       projectId,
       userId: user.uid,
+      createdByUid: user.uid,
+      createdByName,
       title: title.trim(),
       completed: false,
       type,

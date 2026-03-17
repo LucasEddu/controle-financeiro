@@ -502,7 +502,8 @@ function App() {
     };
     
     try {
-      const savedDoc = await addTransaction(newTransaction, activeProjectId);
+      const createdByName = currentUser?.username || currentUser?.displayName || currentUser?.email || currentUser?.uid;
+      const savedDoc = await addTransaction({ ...newTransaction, createdByName }, activeProjectId);
       setTransactions([savedDoc, ...transactions]);
       setDescription(''); setAmount(''); setCategory(''); setIsRecurring(false);
     } catch(err) { alert('Erro ao salvar transação.'); }
@@ -604,7 +605,8 @@ function App() {
           type: taskTypeInput,
           metaValue,
           parcelas,
-          paidAmount: 0
+          paidAmount: 0,
+          createdByName: currentUser?.username || currentUser?.displayName || currentUser?.email || currentUser?.uid
         };
         const newTask = await addTask(activeProjectId, payload);
         try {
@@ -1912,6 +1914,7 @@ function App() {
                   </div>
                 );
                 const rolesMap = proj.collaboratorRoles || {};
+                const namesMap = proj.collaboratorNames || {};
                 const collaboratorIds = proj.collaborators || [];
                 return (
                   <>
@@ -1965,10 +1968,34 @@ function App() {
                         {collaboratorIds.map(uid => (
                           <div key={uid} className="participant-row">
                             <div className="participant-main">
-                              <span className="participant-name">Colaborador (UID: {uid})</span>
+                              <span className="participant-name">
+                                Colaborador: {namesMap[uid] || '—'}
+                              </span>
+                              {!namesMap[uid] ? (
+                                <div className="participant-name-edit">
+                                  <input
+                                    className="participant-name-input"
+                                    type="text"
+                                    placeholder="Nome do colaborador..."
+                                    onKeyDown={(e) => {
+                                      if (e.key !== 'Enter') return;
+                                      const val = e.currentTarget.value.trim();
+                                      if (!val) return;
+                                      updateProject(proj.id, { collaboratorNames: { ...namesMap, [uid]: val } })
+                                        .then(() => {
+                                          setProjects(prev => prev.map(p => p.id === proj.id ? { ...p, collaboratorNames: { ...(p.collaboratorNames || {}), [uid]: val } } : p));
+                                          e.currentTarget.value = '';
+                                        })
+                                        .catch(() => alert('Erro ao salvar nome do colaborador.'));
+                                    }}
+                                  />
+                                  <span className="participant-name-hint">Pressione Enter para salvar</span>
+                                </div>
+                              ) : null}
                             </div>
                             <div className="participant-actions">
                               <select
+                                className="participant-role-select"
                                 value={rolesMap[uid] || 'view'}
                                 onChange={e => {
                                   const newRole = e.target.value;
@@ -1991,15 +2018,18 @@ function App() {
                                 className="text-btn danger"
                                 onClick={() => {
                                   const { [uid]: _, ...restRoles } = rolesMap;
+                                  const { [uid]: __, ...restNames } = namesMap;
                                   const newCollabs = collaboratorIds.filter(id => id !== uid);
                                   updateProject(proj.id, {
                                     collaborators: newCollabs,
-                                    collaboratorRoles: restRoles
+                                    collaboratorRoles: restRoles,
+                                    collaboratorNames: restNames
                                   }).then(() => {
                                     setProjects(prev => prev.map(p => p.id === proj.id ? {
                                       ...p,
                                       collaborators: newCollabs,
-                                      collaboratorRoles: restRoles
+                                      collaboratorRoles: restRoles,
+                                      collaboratorNames: restNames
                                     } : p));
                                   }).catch(() => alert('Erro ao remover colaborador.'));
                                 }}
@@ -2290,7 +2320,10 @@ function App() {
                              <span>{t.description}</span>
                              {t.isRecurring ? <span title="Despesa Recorrente" style={{marginLeft: 4, color: 'var(--primary-color)'}}>⟳</span> : null}
                           </span>
-                          <span className="t-meta"><span>{t.category}</span><span> • </span><span>{t.displayDate}</span></span>
+                          <span className="t-meta">
+                            <span>{t.category}</span><span> • </span><span>{t.displayDate}</span>
+                            {t.createdByName ? (<><span> • </span><span>por {t.createdByName}</span></>) : null}
+                          </span>
                         </div>
                         <div className={`t-amount ${t.type}`}>
                           <span>{t.type === 'expense' ? '− ' : '+ '}</span><span>R$ {formatMoney(t.amount)}</span>
@@ -2544,6 +2577,9 @@ function App() {
                                 {task.parcelas > 0 && meta > 0 && (
                                   <span className="task-meta-parcela">Valor parcela: R$ {formatMoney(meta / task.parcelas)}</span>
                                 )}
+                                {task.createdByName ? (
+                                  <span className="task-meta-text">por {task.createdByName}</span>
+                                ) : null}
                               </div>
                               <div className="progress-bg task-progress-bg">
                                 <div className="progress-fill task-progress-fill" style={{ width: `${progressPct}%` }} />
