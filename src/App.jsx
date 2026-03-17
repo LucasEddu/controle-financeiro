@@ -148,6 +148,7 @@ function App() {
   const [projectToDelete, setProjectToDelete] = useState(null); // { id, name } or null
   const [projectToRename, setProjectToRename] = useState(null); // { id, name } or null
   const [renameProjectValue, setRenameProjectValue] = useState('');
+  const [projectSettingsId, setProjectSettingsId] = useState(null);
 
   // --------- STATE: TASKS (Tarefas pendentes por projeto) ---------
   const [tasks, setTasks] = useState([]);
@@ -1749,7 +1750,7 @@ function App() {
       {/* MAIN CONTENT AREA */}
       <div className="content-wrapper">
         <header className="top-bar">
-          <div className="user-info">
+          <div className="user-info" onClick={() => setCurrentView('userSettings')} style={{cursor: 'pointer'}}>
             <div className="avatar">{(currentUser.username || currentUser.displayName || currentUser.email || '?').charAt(0).toUpperCase()}</div>
             <div className="user-details">
               <h3>{currentUser.username || currentUser.displayName || currentUser.email}</h3>
@@ -1833,9 +1834,18 @@ function App() {
                  </button>
                  {isOwner && (
                    <div className="project-tab-actions">
-                     <button type="button" className="project-tab-icon" onClick={(e) => { e.stopPropagation(); setInviteModalProject({ id: p.id, name: p.name }); setInviteEmailInput(''); setInviteRoleInput('view'); }} title="Convidar">⊕</button>
-                     <button type="button" className="project-tab-icon" onClick={(e) => { e.stopPropagation(); setProjectToRename({ id: p.id, name: p.name }); setRenameProjectValue(p.name); }} title="Renomear">✎</button>
-                     <button type="button" className="project-tab-icon project-tab-icon-danger" onClick={(e) => { e.stopPropagation(); setProjectToDelete({ id: p.id, name: p.name }); }} title="Excluir">✕</button>
+                     <button
+                       type="button"
+                       className="project-tab-icon"
+                       onClick={(e) => {
+                         e.stopPropagation();
+                         setProjectSettingsId(p.id);
+                         setCurrentView('projectSettings');
+                       }}
+                       title="Configurações do projeto"
+                     >
+                       ⚙
+                     </button>
                    </div>
                  )}
                </div>
@@ -1848,6 +1858,222 @@ function App() {
              + Novo Projeto
            </button>
         </div>
+
+        {currentView === 'userSettings' && (
+          <main className="main-content">
+            <div className="card list-section">
+              <div className="list-header">
+                <h2>Configurações da conta</h2>
+              </div>
+              <div style={{fontSize: 13, color: 'var(--text-tertiary)', marginBottom: 16}}>
+                Gerencie suas informações básicas e preferências.
+              </div>
+              <div className="settings-grid">
+                <div className="settings-card">
+                  <h3>Perfil</h3>
+                  <p><strong>Nome de exibição</strong><br />{currentUser.displayName || '—'}</p>
+                  <p><strong>Username</strong><br />{currentUser.username || '—'}</p>
+                  <p><strong>E-mail</strong><br />{currentUser.email}</p>
+                </div>
+                <div className="settings-card">
+                  <h3>Segurança</h3>
+                  <p style={{fontSize: 12, color: 'var(--text-tertiary)'}}>Use a tela de login para redefinir sua senha se necessário.</p>
+                </div>
+              </div>
+              <div style={{marginTop: 24}}>
+                <button
+                  type="button"
+                  className="text-btn"
+                  onClick={() => setCurrentView('dashboard')}
+                >
+                  ← Voltar para Dashboard
+                </button>
+              </div>
+            </div>
+          </main>
+        )}
+
+        {currentView === 'projectSettings' && projectSettingsId && (
+          <main className="main-content">
+            <div className="card list-section">
+              {(() => {
+                const proj = projects.find(p => p.id === projectSettingsId);
+                if (!proj) return (
+                  <div>
+                    <div className="list-header">
+                      <h2>Projeto não encontrado</h2>
+                    </div>
+                    <button type="button" className="text-btn" onClick={() => setCurrentView('dashboard')}>← Voltar</button>
+                  </div>
+                );
+                const rolesMap = proj.collaboratorRoles || {};
+                const collaboratorIds = proj.collaborators || [];
+                return (
+                  <>
+                    <div className="list-header">
+                      <h2>Configurações do projeto</h2>
+                    </div>
+                    <div style={{fontSize: 13, color: 'var(--text-tertiary)', marginBottom: 16}}>
+                      Gerencie o nome, participantes e permissões de “{proj.name}”.
+                    </div>
+
+                    <section className="settings-block">
+                      <h3>Informações básicas</h3>
+                      <div className="form-group">
+                        <label>Nome do projeto</label>
+                        <input
+                          type="text"
+                          value={renameProjectValue || proj.name}
+                          onChange={e => setRenameProjectValue(e.target.value)}
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        className="submit-btn"
+                        onClick={() => {
+                          if (!renameProjectValue.trim()) return;
+                          updateProject(proj.id, { name: renameProjectValue.trim() })
+                            .then(() => {
+                              setProjects(prev => prev.map(p => p.id === proj.id ? { ...p, name: renameProjectValue.trim() } : p));
+                            })
+                            .catch(() => alert('Erro ao renomear projeto.'));
+                        }}
+                      >
+                        Salvar nome
+                      </button>
+                    </section>
+
+                    <section className="settings-block">
+                      <h3>Participantes</h3>
+                      <p className="settings-hint">Apenas o dono pode gerenciar permissões.</p>
+                      <div className="participants-list">
+                        <div className="participant-row">
+                          <div className="participant-main">
+                            <span className="participant-name">
+                              Dono: {proj.userId === currentUser.uid
+                                ? (currentUser.username || currentUser.displayName || currentUser.email || proj.userId)
+                                : proj.userId}
+                            </span>
+                            <span className="participant-role-tag">Owner</span>
+                          </div>
+                        </div>
+                        {collaboratorIds.map(uid => (
+                          <div key={uid} className="participant-row">
+                            <div className="participant-main">
+                              <span className="participant-name">Colaborador (UID: {uid})</span>
+                            </div>
+                            <div className="participant-actions">
+                              <select
+                                value={rolesMap[uid] || 'view'}
+                                onChange={e => {
+                                  const newRole = e.target.value;
+                                  updateProject(proj.id, {
+                                    collaboratorRoles: { ...rolesMap, [uid]: newRole }
+                                  }).then(() => {
+                                    setProjects(prev => prev.map(p => p.id === proj.id ? {
+                                      ...p,
+                                      collaboratorRoles: { ...(p.collaboratorRoles || {}), [uid]: newRole }
+                                    } : p));
+                                  }).catch(() => alert('Erro ao atualizar permissão.'));
+                                }}
+                              >
+                                <option value="view">Apenas ver</option>
+                                <option value="add">Ver e incluir</option>
+                                <option value="manage">Ver, incluir e excluir</option>
+                              </select>
+                              <button
+                                type="button"
+                                className="text-btn danger"
+                                onClick={() => {
+                                  const { [uid]: _, ...restRoles } = rolesMap;
+                                  const newCollabs = collaboratorIds.filter(id => id !== uid);
+                                  updateProject(proj.id, {
+                                    collaborators: newCollabs,
+                                    collaboratorRoles: restRoles
+                                  }).then(() => {
+                                    setProjects(prev => prev.map(p => p.id === proj.id ? {
+                                      ...p,
+                                      collaborators: newCollabs,
+                                      collaboratorRoles: restRoles
+                                    } : p));
+                                  }).catch(() => alert('Erro ao remover colaborador.'));
+                                }}
+                              >
+                                Remover
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </section>
+
+                    <section className="settings-block">
+                      <h3>Convidar novo participante</h3>
+                      <div className="form-group">
+                        <label>E-mail</label>
+                        <input
+                          type="email"
+                          value={inviteEmailInput}
+                          onChange={e => setInviteEmailInput(e.target.value)}
+                          placeholder="email@exemplo.com"
+                        />
+                      </div>
+                      <div className="form-group">
+                        <label>Nível de acesso</label>
+                        <select value={inviteRoleInput} onChange={e => setInviteRoleInput(e.target.value)}>
+                          <option value="view">Apenas ver</option>
+                          <option value="add">Ver e incluir registros</option>
+                          <option value="manage">Ver, incluir e excluir registros</option>
+                        </select>
+                      </div>
+                      <button
+                        type="button"
+                        className="submit-btn"
+                        onClick={() => {
+                          if (!inviteEmailInput.trim()) return;
+                          setInviteSending(true);
+                          createInvite(proj.id, proj.name, inviteEmailInput.trim(), inviteRoleInput)
+                            .then(() => {
+                              setInviteEmailInput('');
+                              alert('Convite enviado.');
+                            })
+                            .catch(err => alert(err.message || 'Erro ao enviar convite.'))
+                            .finally(() => setInviteSending(false));
+                        }}
+                        disabled={inviteSending || !inviteEmailInput.trim()}
+                      >
+                        {inviteSending ? 'Enviando...' : 'Enviar convite'}
+                      </button>
+                    </section>
+
+                    <section className="settings-block">
+                      <h3>Zona perigosa</h3>
+                      <p className="settings-hint">Excluir o projeto remove também seus dados associados para você.</p>
+                      <button
+                        type="button"
+                        className="submit-btn"
+                        style={{ background: 'var(--danger-color)' }}
+                        onClick={() => setProjectToDelete({ id: proj.id, name: proj.name })}
+                      >
+                        Excluir projeto
+                      </button>
+                    </section>
+
+                    <div style={{marginTop: 24}}>
+                      <button
+                        type="button"
+                        className="text-btn"
+                        onClick={() => { setProjectSettingsId(null); setCurrentView('dashboard'); }}
+                      >
+                        ← Voltar para Dashboard
+                      </button>
+                    </div>
+                  </>
+                );
+              })()}
+            </div>
+          </main>
+        )}
 
         {currentView === 'dashboard' && (
           <div className="dashboard-layout">
